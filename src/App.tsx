@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
+import { AccountDialog, SYNC_LABEL } from './components/AccountDialog'
 import { Guide } from './components/Guide'
+import { InstallCard } from './components/InstallCard'
 import { ItemCard } from './components/ItemCard'
 import { ItemDialog } from './components/ItemDialog'
 import { ServiceDialog } from './components/ServiceDialog'
 import { SetupScreen } from './components/SetupScreen'
 import { VehicleDialog } from './components/VehicleDialog'
 import { formatKm, getDue, remainingText, sortByUrgency } from './maintenance'
+import { useAuth } from './useAuth'
 import { useGarage } from './useGarage'
 import type { Filter, ItemDraft, MaintenanceItem, ServiceDraft } from './types'
 
@@ -24,10 +27,27 @@ const FILTERS: ReadonlyArray<{ id: Filter; label: string }> = [
 ]
 
 export default function App() {
-  const { garage, start, updateVehicle, addItem, updateItem, removeItem, registerService, reset } =
-    useGarage()
+  const auth = useAuth()
+  const {
+    garage,
+    start,
+    updateVehicle,
+    addItem,
+    updateItem,
+    removeItem,
+    registerService,
+    reset,
+    clearLocalCache,
+    syncNow,
+    cacheReady,
+    syncStatus,
+    lastSyncedAt,
+    syncError,
+  } = useGarage(auth.userId)
+
   const [filter, setFilter] = useState<Filter>('all')
   const [dialog, setDialog] = useState<DialogState>({ kind: 'none' })
+  const [accountOpen, setAccountOpen] = useState(false)
 
   const view = useMemo(() => {
     if (!garage) return null
@@ -46,17 +66,6 @@ export default function App() {
     return { enriched, counts, priority }
   }, [garage])
 
-  if (!garage || !view) return <SetupScreen onStart={start} />
-
-  const { vehicle } = garage
-  const { enriched, counts, priority } = view
-  const visible = filter === 'all' ? enriched : enriched.filter(entry => entry.due.status === filter)
-
-  function countFor(id: Filter) {
-    if (!view) return 0
-    return id === 'all' ? garage!.items.length : view.counts[id]
-  }
-
   function handleItemSubmit(draft: ItemDraft) {
     if (dialog.kind === 'edit-item') updateItem(dialog.item.id, draft)
     else addItem(draft)
@@ -74,8 +83,118 @@ export default function App() {
     }
   }
 
-  function handleReset() {
-    if (window.confirm('¿Borrar todos los datos del garaje y empezar de nuevo?')) reset()
+  async function handleReset() {
+    const message = auth.email
+      ? '¿Borrar todos los datos del garaje? También se borra la copia en la nube.'
+      : '¿Borrar todos los datos del garaje y empezar de nuevo?'
+    if (!window.confirm(message)) return
+    const ok = await reset()
+    if (!ok) {
+      window.alert(
+        'No se pudo borrar el garaje de la nube. Revisá la conexión e intentá de nuevo.',
+      )
+      return
+    }
+    setAccountOpen(false)
+  }
+
+  async function handleSignOut() {
+    if (
+      !window.confirm(
+        '¿Cerrar sesión? Se borra la copia local de este dispositivo; tus datos quedan en la nube.',
+      )
+    ) {
+      return
+    }
+    const saved = await syncNow()
+    if (
+      !saved &&
+      !window.confirm(
+        'No se pudo sincronizar. Si cerrás sesión ahora, los cambios de este dispositivo que no llegaron a la nube se pierden. ¿Cerrar sesión igual?',
+      )
+    ) {
+      return
+    }
+    const result = await auth.signOut()
+    if (result.error) {
+      window.alert(result.error)
+      return
+    }
+    clearLocalCache()
+    setAccountOpen(false)
+  }
+
+  const accountLabel = !auth.configured
+    ? 'Solo local'
+    : auth.loading
+      ? 'Cuenta'
+      : !auth.email
+        ? 'Iniciar sesión'
+        : SYNC_LABEL[syncStatus]
+
+  const accountDot = auth.configured && auth.email ? syncStatus : 'local'
+
+  const accountButton = (
+    <button
+      type="button"
+      className="account"
+      onClick={() => setAccountOpen(true)}
+      aria-haspopup="dialog"
+      aria-label={`Cuenta y sincronización — ${accountLabel}`}
+    >
+      <span className={`account__dot account__dot--${accountDot}`} aria-hidden="true" />
+      <span className="account__label">{accountLabel}</span>
+    </button>
+  )
+
+  const accountDialog = accountOpen ? (
+    <AccountDialog
+      configured={auth.configured}
+      email={auth.email}
+      syncStatus={syncStatus}
+      lastSyncedAt={lastSyncedAt}
+      syncError={syncError}
+      onClose={() => setAccountOpen(false)}
+      onSignIn={email => auth.signIn(email)}
+      onVerifyCode={(email, code) => auth.verifyCode(email, code)}
+      onSignOut={handleSignOut}
+      onSyncNow={() => {
+        void syncNow()
+      }}
+    />
+  ) : null
+
+  // Si hay sesión pero todavía no llegó la nube, esperamos antes de mostrar el
+  // onboarding: evita el parpadeo de "empezar de cero" y ediciones pisadas.
+  const waitingForAccount =
+    auth.configured && (auth.loading || (!!auth.email && !garage && syncStatus === 'loading'))
+
+  if (!cacheReady || waitingForAccount) {
+    return (
+      <div className="boot" role="status" aria-live="polite">
+        <span className="boot__spinner" aria-hidden="true" />
+        <span>{waitingForAccount ? 'Conectando con tu cuenta…' : 'Cargando tu garaje…'}</span>
+      </div>
+    )
+  }
+
+  if (!garage || !view) {
+    return (
+      <>
+        <div className="setup-account">{accountButton}</div>
+        <SetupScreen onStart={start} />
+        {accountDialog}
+      </>
+    )
+  }
+
+  const { vehicle } = garage
+  const { counts, priority } = view
+  const visible = filter === 'all' ? view.enriched : view.enriched.filter(entry => entry.due.status === filter)
+  const totalItems = garage.items.length
+
+  function countFor(id: Filter) {
+    return id === 'all' ? totalItems : counts[id]
   }
 
   return (
@@ -85,17 +204,20 @@ export default function App() {
           <p className="eyebrow">Garaje</p>
           <h1 className="title">{vehicle.name}</h1>
         </div>
-        <button
-          type="button"
-          className="odo"
-          onClick={() => setDialog({ kind: 'vehicle' })}
-          title="Actualizar nombre y kilometraje"
-        >
-          <span className="odo__value">
-            {formatKm(vehicle.currentKm)} <small>km</small>
-          </span>
-          <span className="odo__action">Actualizar kilometraje</span>
-        </button>
+        <div className="topbar__actions">
+          {accountButton}
+          <button
+            type="button"
+            className="odo"
+            onClick={() => setDialog({ kind: 'vehicle' })}
+            title="Actualizar nombre y kilometraje"
+          >
+            <span className="odo__value">
+              {formatKm(vehicle.currentKm)} <small>km</small>
+            </span>
+            <span className="odo__action">Actualizar kilometraje</span>
+          </button>
+        </div>
       </header>
 
       <section className="stats" aria-label="Resumen del estado">
@@ -170,6 +292,8 @@ export default function App() {
         </button>
       </div>
 
+      <InstallCard />
+
       {visible.length === 0 ? (
         <p className="empty">
           {filter === 'all'
@@ -196,8 +320,13 @@ export default function App() {
       <Guide />
 
       <footer className="footer">
-        <p>Los datos se guardan solo en este navegador.</p>
-        <button type="button" className="link" onClick={handleReset}>
+        <p>
+          Los datos se guardan en este dispositivo y se sincronizan si tenés cuenta. ·{' '}
+          <a className="link" href="/privacidad.html">
+            Privacidad
+          </a>
+        </p>
+        <button type="button" className="link" onClick={() => void handleReset()}>
           Reiniciar garaje
         </button>
       </footer>
@@ -238,6 +367,8 @@ export default function App() {
           onSubmit={handleServiceSubmit}
         />
       )}
+
+      {accountDialog}
     </main>
   )
 }

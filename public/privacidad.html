@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="robots" content="index" />
+    <title>Privacidad — Garaje</title>
+    <style>
+      :root {
+        --bg: #f4f6fa;
+        --surface: #ffffff;
+        --border: #e2e8f2;
+        --text: #111827;
+        --muted: #64748b;
+        --accent: #2563eb;
+        --accent-soft: #e8efff;
+        color-scheme: light dark;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0a0e16;
+          --surface: #131926;
+          --border: #273143;
+          --text: #e9eef8;
+          --muted: #93a1b8;
+          --accent: #6f9bff;
+          --accent-soft: #1b2744;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 2.5rem 1rem 4rem;
+        background:
+          radial-gradient(900px 420px at 12% -10%, var(--accent-soft), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.65;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      main {
+        width: min(720px, 100%);
+        margin: 0 auto;
+        padding: 2rem clamp(1.1rem, 4vw, 2.4rem);
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 0.35rem;
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      h1 {
+        margin: 0 0 0.4rem;
+        font-size: clamp(1.6rem, 4vw, 2rem);
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+
+      .updated {
+        margin: 0 0 1.6rem;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+
+      h2 {
+        margin: 1.8rem 0 0.5rem;
+        font-size: 1.05rem;
+        letter-spacing: -0.01em;
+      }
+
+      p,
+      li {
+        font-size: 0.92rem;
+      }
+
+      p {
+        margin: 0 0 0.8rem;
+      }
+
+      ul {
+        margin: 0 0 0.9rem;
+        padding-left: 1.2rem;
+      }
+
+      li {
+        margin-bottom: 0.35rem;
+      }
+
+      a {
+        color: var(--accent);
+        text-underline-offset: 2px;
+      }
+
+      code {
+        padding: 0.05rem 0.35rem;
+        border-radius: 5px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        font-size: 0.85em;
+      }
+
+      .note {
+        margin: 1.6rem 0 0;
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 10px;
+        background: var(--bg);
+        font-size: 0.86rem;
+        color: var(--muted);
+      }
+
+      footer {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        font-size: 0.84rem;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">Garaje</p>
+      <h1>Política de privacidad</h1>
+      <p class="updated">Última actualización: 26 de octubre de 2026</p>
+
+      <p>
+        Garaje es una app para llevar el mantenimiento del carro. Esta página explica qué datos se
+        tratan, dónde se guardan y cómo podés eliminarlos. Es un documento simple, pensado para una
+        app sin publicidad ni rastreo.
+      </p>
+
+      <h2>1. Qué datos se guardan</h2>
+      <ul>
+        <li>
+          <strong>Datos del garaje:</strong> nombre del vehículo, kilometraje, servicios,
+          vencimientos, fechas e historial que cargues.
+        </li>
+        <li>
+          <strong>Email:</strong> solo si creás una cuenta para sincronizar. Se usa para enviarte
+          un enlace de acceso; no hay contraseñas.
+        </li>
+      </ul>
+      <p>
+        No se piden nombre, teléfono, dirección ni datos de pago. La app no incluye analítica,
+        publicidad, ni cookies de seguimiento.
+      </p>
+
+      <h2>2. Dónde se guardan</h2>
+      <p>
+        <strong>Sin cuenta:</strong> todo queda en tu dispositivo, en el almacenamiento del
+        navegador (IndexedDB, con una copia en <code>localStorage</code>). Si borrás los datos del
+        navegador o desinstalás la app, esa información se pierde.
+      </p>
+      <p>
+        <strong>Con cuenta:</strong> el garaje se guarda además en
+        <a href="https://supabase.com" rel="noreferrer noopener" target="_blank">Supabase</a>, que
+        actúa como proveedor de base de datos y autenticación, para poder sincronizarlo entre tus
+        dispositivos. Supabase aloja los datos en la región elegida al crear el proyecto. El sitio
+        se publica con <a href="https://vercel.com" rel="noreferrer noopener" target="_blank">Vercel</a>,
+        que puede registrar datos técnicos (como la IP) en sus registros de acceso por seguridad y
+        funcionamiento.
+      </p>
+
+      <h2>3. Para qué se usan</h2>
+      <ul>
+        <li>Mostrar tu plan de mantenimiento y calcular vencimientos.</li>
+        <li>Guardar y recuperar tus datos cuando volvés a abrir la app.</li>
+        <li>Sincronizar el mismo garaje entre tus dispositivos, si iniciás sesión.</li>
+        <li>Enviarte el enlace de acceso cuando lo pedís.</li>
+      </ul>
+      <p>No se venden ni se comparten datos con terceros para publicidad.</p>
+
+      <h2>4. Cuánto tiempo se conservan</h2>
+      <p>
+        Los datos locales permanecen hasta que los borres desde la app o el navegador. Los datos de
+        la cuenta permanecen mientras la cuenta exista. Podés borrar el contenido del garaje desde
+        la app en cualquier momento; eso elimina también la copia en la nube.
+      </p>
+
+      <h2>5. Tus derechos</h2>
+      <p>
+        Podés pedir acceso, corrección, exportación o eliminación de tus datos, incluida la cuenta
+        y el email asociado. Para hacerlo, escribí a
+        <strong>[completar: tu-email@ejemplo.com]</strong>. También podés eliminar el garaje desde
+        la app con la opción «Reiniciar garaje».
+      </p>
+
+      <h2>6. Menores</h2>
+      <p>
+        La app no está dirigida a menores de 16 años y no se recopilan datos de forma consciente de
+        ese grupo.
+      </p>
+
+      <h2>7. Cambios</h2>
+      <p>
+        Si esta política cambia, se actualizará esta página con una nueva fecha. Los cambios
+        importantes se avisarán dentro de la app.
+      </p>
+
+      <h2>8. Contacto</h2>
+      <p>
+        Por cualquier duda sobre privacidad:
+        <strong>[completar: tu-email@ejemplo.com]</strong>.
+      </p>
+
+      <p class="note">
+        Este texto es una base razonable para una app personal o de un proyecto pequeño. Antes de
+        publicarla de forma comercial, revisá los requisitos legales de tu país y completá los
+        datos de contacto.
+      </p>
+
+      <footer>
+        <a href="/">← Volver a Garaje</a>
+      </footer>
+    </main>
+  </body>
+</html>
