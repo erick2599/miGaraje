@@ -1,7 +1,8 @@
-# Notas
+# Garaje — mantenimiento del carro
 
-App de notas y tareas hecha con **React + TypeScript + Vite**. Sin backend: todo se guarda en el
-`localStorage` del navegador, así que funciona offline y no necesita base de datos.
+App para llevar el mantenimiento de tu carro: kilometraje, servicios, vencimientos e historial.
+Hecha con **React + TypeScript + Vite**, sin backend. Todo se guarda en el `localStorage` del
+navegador.
 
 ## Arrancar
 
@@ -10,64 +11,78 @@ npm install     # solo la primera vez
 npm run dev     # abre http://localhost:5173
 ```
 
-Otros comandos:
-
 | Comando | Qué hace |
 | --- | --- |
 | `npm run dev` | Servidor de desarrollo con recarga automática |
 | `npm run build` | Typecheck + build de producción en `dist/` |
-| `npm run preview` | Sirve el build de producción para probarlo |
+| `npm run preview` | Sirve el build de producción |
 
-## Qué trae
+## Qué hace
 
-- Crear notas con el botón **Añadir** o la tecla `Enter`.
-- Marcar como completadas con el checkbox.
-- Editar haciendo clic sobre el texto (`Enter` guarda, `Esc` cancela).
-- Eliminar con la `×` que aparece al pasar el mouse.
-- Filtrar por **Todas / Pendientes / Completadas** con contadores.
-- Buscar por texto.
-- Barra de progreso y botón para borrar las completadas.
-- Tema claro/oscuro automático según el sistema.
-- Diseño responsive y accesible (foco visible, etiquetas ARIA, `prefers-reduced-motion`).
+- Al empezar, pedís nombre y kilometraje del carro y crea un plan con 8 servicios típicos:
+  aceite, rotación y cambio de llantas, frenos, revisión general, filtros, refrigerante y batería.
+- Cada servicio tiene **intervalo por km y/o por meses** (podés usar uno o los dos).
+- Calcula el próximo vencimiento desde el último servicio y muestra:
+  - **Vencido** si ya pasaste los km o la fecha.
+  - **Próximo** si falta poco (10% del intervalo o 30 días).
+  - **Al día** en el resto.
+- Barra de progreso del intervalo y texto tipo "faltan 800 km · en 12 días".
+- **Registrar servicio**: guarda fecha, km y detalle en el historial, actualiza el último servicio y
+  sube el kilometraje si corresponde.
+- Alta, edición y borrado de servicios personalizados.
+- Filtros por estado y resumen con contadores.
+- Guía rápida de mantenimiento integrada (qué revisar y cada cuánto).
+- Tema claro/oscuro automático, responsive y accesible.
 
 ## Estructura
 
 ```text
 src/
-  main.tsx        Punto de entrada de React
-  App.tsx         Pantalla principal: formulario, filtros, búsqueda y lista
-  NoteRow.tsx     Una fila de nota + su modo de edición
-  useNotes.ts     Estado y persistencia (localStorage)
-  types.ts        Tipo Note y Filter
-  styles.css      Todos los estilos y variables de tema
+  main.tsx                 Punto de entrada
+  App.tsx                  Pantalla principal, resumen, filtros y diálogos
+  useGarage.ts             Estado, persistencia y datos iniciales
+  maintenance.ts           Cálculos de vencimiento, orden y formato
+  types.ts                 Tipos del dominio
+  components/
+    SetupScreen.tsx        Onboarding (nombre + km)
+    ItemCard.tsx           Tarjeta de un servicio
+    ItemDialog.tsx         Crear/editar servicio
+    ServiceDialog.tsx      Registrar un servicio hecho
+    VehicleDialog.tsx      Editar nombre y kilometraje
+    Modal.tsx              Diálogo base
+    Guide.tsx              Guía rápida
+  styles.css               Estilos y temas
 ```
 
-## Cómo funciona el estado
+## Cómo se calcula el estado
 
-`useNotes` es un hook que:
+En `maintenance.ts`, `getDue()` combina las dos dimensiones:
 
-1. Carga las notas desde `localStorage` al iniciar y valida su forma (`isNote`).
-2. Expone `add`, `toggle`, `update`, `remove` y `clearCompleted`.
-3. Guarda automáticamente en cada cambio.
+```text
+dueKm    = lastKm + intervalKm
+kmLeft   = dueKm - currentKm
 
-Si algún día quieres backend, lo único que cambia es el interior de ese hook: el resto de la app
-no se entera.
+dueDate  = lastDate + intervalMonths
+daysLeft = dueDate - hoy
+```
 
-## Ideas para seguir practicando
+- Vencido si `kmLeft < 0` o `daysLeft < 0`.
+- Próximo si `kmLeft <= max(300, 10% del intervalo)` o `daysLeft <= 30`.
+- El progreso es el mayor entre `km usados / intervalo` y `días usados / meses del intervalo`.
 
-En orden de dificultad:
+Los datos viven en `localStorage` bajo la clave `garaje.v1`, con validación al cargar.
 
-1. **Prioridades**: campo `priority` y ordenar la lista.
-2. **Etiquetas**: varias por nota, filtro por etiqueta.
-3. **Fechas límite**: input `date` y resaltar las vencidas.
-4. **Arrastrar para reordenar**: campo `order` + drag & drop.
-5. **Deshacer al borrar**: guardar la última acción y mostrar un aviso.
-6. **Tests**: Vitest + Testing Library para `useNotes` y los filtros.
-7. **Sincronizar entre dispositivos**: backend propio o Supabase.
-8. **Publicar**: GitHub Pages, Vercel o Netlify.
+## Ideas para seguir
 
-## Desplegar en GitHub Pages (resumen)
+1. **Costos**: campo `cost` en cada registro y total gastado por año.
+2. **Recordatorios**: exportar un `.ics` o notificaciones del navegador.
+3. **Varios vehículos**: lista de garajes con selector.
+4. **Exportar/importar JSON**: respaldo real de los datos.
+5. **Modo millas**: cambiar unidad y convertir intervalos.
+6. **Tests**: Vitest para `getDue` (bordes de fecha, meses cortos, km negativos).
+7. **Publicar**: GitHub Pages, Vercel o Netlify.
 
-1. `npm run build`.
-2. Publicar la carpeta `dist/` (por ejemplo con `gh-pages`).
-3. Si el repo es `usuario.github.io/proyecto`, definir `base: '/proyecto/'` en `vite.config.ts`.
+## Aviso
+
+Los intervalos precargados son orientativos. Siempre priorizá el manual del fabricante y las
+condiciones reales de uso (ciudad, tierra, carga, clima).
