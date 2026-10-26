@@ -198,6 +198,8 @@ la vez) alcanza; si más adelante hace falta, se puede pasar a operaciones por s
   de privacidad.
 - No hay exportación/importación JSON todavía.
 - El email integrado de Supabase limita a 2 envíos por hora.
+- El plan gratuito de Supabase puede pausar el proyecto tras una semana sin actividad; para una
+  app pública con usuarios conviene revisar el plan o mantener actividad.
 - En iOS, la PWA y Safari no comparten almacenamiento: instalá primero y usá el código.
 
 ## Seguridad
