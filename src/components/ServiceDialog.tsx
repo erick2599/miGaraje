@@ -1,18 +1,27 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from './Modal'
-import { formatDate, formatKm, todayISO } from '../maintenance'
-import type { MaintenanceItem, ServiceDraft } from '../types'
+import {
+  formatDate,
+  formatDistance,
+  fromDisplayDistance,
+  toDisplayDistance,
+  todayISO,
+} from '../maintenance'
+import type { DistanceUnit, MaintenanceItem, ServiceDraft } from '../types'
 
 type Props = {
   item: MaintenanceItem
   currentKm: number
+  unit: DistanceUnit
   onClose: () => void
   onSubmit: (draft: ServiceDraft) => void
 }
 
-export function ServiceDialog({ item, currentKm, onClose, onSubmit }: Props) {
+export function ServiceDialog({ item, currentKm, unit, onClose, onSubmit }: Props) {
   const [date, setDate] = useState(todayISO())
-  const [km, setKm] = useState(String(currentKm))
+  const [distance, setDistance] = useState(
+    String(Math.round(toDisplayDistance(currentKm, unit))),
+  )
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
 
@@ -22,25 +31,21 @@ export function ServiceDialog({ item, currentKm, onClose, onSubmit }: Props) {
       setError('Elegí la fecha del servicio.')
       return
     }
-    const parsed = Number(km.replace(/[^\d]/g, ''))
-    if (km.trim() === '' || !Number.isFinite(parsed)) {
-      setError('Ingresá el kilometraje al momento del servicio.')
+    const parsed = Number(distance.replace(/[^\d]/g, ''))
+    if (distance.trim() === '' || !Number.isFinite(parsed)) {
+      setError('Ingresá el odómetro al momento del servicio.')
       return
     }
-    onSubmit({ date, km: parsed, note })
+    onSubmit({ date, km: Math.round(fromDisplayDistance(parsed, unit)), note })
   }
 
   return (
-    <Modal
-      title="Registrar servicio"
-      subtitle={item.name}
-      onClose={onClose}
-    >
+    <Modal title="Registrar servicio" subtitle={item.name} onClose={onClose}>
       <div className="service-summary">
         <div>
           <span className="service-summary__label">Último registro</span>
           <strong>
-            {item.lastKm !== null ? `${formatKm(item.lastKm)} km` : '—'}
+            {item.lastKm !== null ? formatDistance(item.lastKm, unit) : '—'}
           </strong>
         </div>
         <div>
@@ -65,19 +70,19 @@ export function ServiceDialog({ item, currentKm, onClose, onSubmit }: Props) {
           </label>
 
           <label className="field">
-            <span className="field__label">Kilometraje</span>
+            <span className="field__label">Odómetro</span>
             <div className="input-group">
               <input
                 className="input"
-                value={km}
+                value={distance}
                 onChange={event => {
-                  setKm(event.target.value)
+                  setDistance(event.target.value)
                   setError('')
                 }}
                 inputMode="numeric"
-                placeholder={String(currentKm)}
+                placeholder={String(Math.round(toDisplayDistance(currentKm, unit)))}
               />
-              <span className="input-group__suffix">km</span>
+              <span className="input-group__suffix">{unit}</span>
             </div>
           </label>
         </div>
@@ -95,7 +100,7 @@ export function ServiceDialog({ item, currentKm, onClose, onSubmit }: Props) {
         </label>
 
         <p className="form-hint">
-          El próximo vencimiento se calcula desde estos datos. El kilometraje del carro se
+          El próximo vencimiento se calcula desde estos datos. El odómetro del vehículo se
           actualiza si es mayor al actual.
         </p>
 

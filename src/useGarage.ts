@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
-import { todayISO } from './maintenance'
+import { fromDisplayDistance, milesToKm, todayISO } from './maintenance'
 import {
   clearCachedGarage,
   loadCachedGarage,
@@ -10,12 +10,14 @@ import {
   saveLegacyGarage,
 } from './storage'
 import type {
+  DistanceUnit,
   Garage,
   ItemDraft,
   MaintenanceItem,
   ServiceDraft,
   ServiceRecord,
   Vehicle,
+  VehicleType,
 } from './types'
 
 export type SyncStatus = 'local' | 'loading' | 'saving' | 'synced' | 'error'
@@ -26,9 +28,12 @@ type GarageRow = {
   client_id: string | null
 }
 
-const PRESETS: ReadonlyArray<
-  Pick<MaintenanceItem, 'name' | 'category' | 'intervalKm' | 'intervalMonths' | 'note'>
-> = [
+type Preset = Pick<
+  MaintenanceItem,
+  'name' | 'category' | 'intervalKm' | 'intervalMonths' | 'note'
+>
+
+const CAR_KM: ReadonlyArray<Preset> = [
   {
     name: 'Cambio de aceite y filtro',
     category: 'aceite',
@@ -87,6 +92,202 @@ const PRESETS: ReadonlyArray<
   },
 ]
 
+const CAR_MI: ReadonlyArray<Preset> = [
+  {
+    name: 'Cambio de aceite y filtro',
+    category: 'aceite',
+    intervalKm: milesToKm(5000),
+    intervalMonths: 6,
+    note: 'Con aceite sintético puede estirarse: revisá el manual.',
+  },
+  {
+    name: 'Rotación de llantas',
+    category: 'llantas',
+    intervalKm: milesToKm(7500),
+    intervalMonths: 6,
+    note: 'Alternar delanteras y traseras.',
+  },
+  {
+    name: 'Revisión de frenos',
+    category: 'frenos',
+    intervalKm: milesToKm(20000),
+    intervalMonths: 12,
+    note: 'Pastillas, discos y líquido de frenos.',
+  },
+  {
+    name: 'Revisión general',
+    category: 'revision',
+    intervalKm: milesToKm(10000),
+    intervalMonths: 12,
+    note: 'Niveles, luces, suspensión, correas y escape.',
+  },
+  {
+    name: 'Filtro de aire del motor',
+    category: 'motor',
+    intervalKm: milesToKm(15000),
+    intervalMonths: 12,
+    note: '',
+  },
+  {
+    name: 'Líquido refrigerante',
+    category: 'motor',
+    intervalKm: milesToKm(30000),
+    intervalMonths: 24,
+    note: 'Revisar nivel y estado siempre con el motor frío.',
+  },
+  {
+    name: 'Batería',
+    category: 'electrico',
+    intervalKm: null,
+    intervalMonths: 48,
+    note: 'Vida típica de 3 a 5 años. Revisar terminales.',
+  },
+  {
+    name: 'Cambio de llantas',
+    category: 'llantas',
+    intervalKm: milesToKm(40000),
+    intervalMonths: 48,
+    note: 'O antes si el dibujo baja de 1,6 mm.',
+  },
+]
+
+const MOTORCYCLE_KM: ReadonlyArray<Preset> = [
+  {
+    name: 'Cambio de aceite y filtro',
+    category: 'aceite',
+    intervalKm: 4000,
+    intervalMonths: 6,
+    note: 'Con aceite sintético puede estirarse: revisá el manual. Controlá el nivel seguido.',
+  },
+  {
+    name: 'Lubricación y tensión de cadena',
+    category: 'motor',
+    intervalKm: 800,
+    intervalMonths: 1,
+    note: 'Limpiá, lubricá y revisá la tensión. Si es scooter con correa, revisá la correa y los rodillos.',
+  },
+  {
+    name: 'Revisión de frenos',
+    category: 'frenos',
+    intervalKm: 10000,
+    intervalMonths: 12,
+    note: 'Pastillas, discos y líquido de frenos. Revisá también el freno trasero.',
+  },
+  {
+    name: 'Revisión de llantas',
+    category: 'llantas',
+    intervalKm: 5000,
+    intervalMonths: 12,
+    note: 'Presión en frío cada 2 semanas; dibujo, grietas y desgaste irregular.',
+  },
+  {
+    name: 'Filtro de aire',
+    category: 'motor',
+    intervalKm: 12000,
+    intervalMonths: 12,
+    note: 'Más seguido si andás por tierra.',
+  },
+  {
+    name: 'Bujías',
+    category: 'motor',
+    intervalKm: 12000,
+    intervalMonths: 24,
+    note: 'Revisá el color y la separación; cambiá según el manual.',
+  },
+  {
+    name: 'Líquido refrigerante',
+    category: 'motor',
+    intervalKm: 24000,
+    intervalMonths: 24,
+    note: 'Solo si es refrigerada por líquido. Revisá con el motor frío.',
+  },
+  {
+    name: 'Cambio de llantas',
+    category: 'llantas',
+    intervalKm: 15000,
+    intervalMonths: 48,
+    note: 'O antes si el dibujo llega al mínimo o aparecen grietas.',
+  },
+  {
+    name: 'Revisión general',
+    category: 'revision',
+    intervalKm: 10000,
+    intervalMonths: 12,
+    note: 'Niveles, luces, cables, suspensión, dirección, cadena y frenos.',
+  },
+]
+
+const MOTORCYCLE_MI: ReadonlyArray<Preset> = [
+  {
+    name: 'Cambio de aceite y filtro',
+    category: 'aceite',
+    intervalKm: milesToKm(2500),
+    intervalMonths: 6,
+    note: 'Con aceite sintético puede estirarse: revisá el manual. Controlá el nivel seguido.',
+  },
+  {
+    name: 'Lubricación y tensión de cadena',
+    category: 'motor',
+    intervalKm: milesToKm(500),
+    intervalMonths: 1,
+    note: 'Limpiá, lubricá y revisá la tensión. Si es scooter con correa, revisá la correa y los rodillos.',
+  },
+  {
+    name: 'Revisión de frenos',
+    category: 'frenos',
+    intervalKm: milesToKm(6000),
+    intervalMonths: 12,
+    note: 'Pastillas, discos y líquido de frenos. Revisá también el freno trasero.',
+  },
+  {
+    name: 'Revisión de llantas',
+    category: 'llantas',
+    intervalKm: milesToKm(3000),
+    intervalMonths: 12,
+    note: 'Presión en frío cada 2 semanas; dibujo, grietas y desgaste irregular.',
+  },
+  {
+    name: 'Filtro de aire',
+    category: 'motor',
+    intervalKm: milesToKm(7500),
+    intervalMonths: 12,
+    note: 'Más seguido si andás por tierra.',
+  },
+  {
+    name: 'Bujías',
+    category: 'motor',
+    intervalKm: milesToKm(7500),
+    intervalMonths: 24,
+    note: 'Revisá el color y la separación; cambiá según el manual.',
+  },
+  {
+    name: 'Líquido refrigerante',
+    category: 'motor',
+    intervalKm: milesToKm(15000),
+    intervalMonths: 24,
+    note: 'Solo si es refrigerada por líquido. Revisá con el motor frío.',
+  },
+  {
+    name: 'Cambio de llantas',
+    category: 'llantas',
+    intervalKm: milesToKm(8000),
+    intervalMonths: 48,
+    note: 'O antes si el dibujo llega al mínimo o aparecen grietas.',
+  },
+  {
+    name: 'Revisión general',
+    category: 'revision',
+    intervalKm: milesToKm(6000),
+    intervalMonths: 12,
+    note: 'Niveles, luces, cables, suspensión, dirección, cadena y frenos.',
+  },
+]
+
+const PRESETS: Record<VehicleType, Record<DistanceUnit, ReadonlyArray<Preset>>> = {
+  car: { km: CAR_KM, mi: CAR_MI },
+  motorcycle: { km: MOTORCYCLE_KM, mi: MOTORCYCLE_MI },
+}
+
 function newId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -123,7 +324,8 @@ function isItem(value: unknown): value is MaintenanceItem {
 export function parseGarage(value: unknown): Garage | null {
   if (typeof value !== 'object' || value === null) return null
   const data = value as Record<string, unknown>
-  if (data.version !== 1) return null
+  // Acepta garajes viejos (v1, solo km) y los migra al formato actual.
+  if (data.version !== 1 && data.version !== 2) return null
   const vehicle = data.vehicle as Record<string, unknown> | undefined
   if (
     !vehicle ||
@@ -133,16 +335,23 @@ export function parseGarage(value: unknown): Garage | null {
   ) {
     return null
   }
+  const type: VehicleType = vehicle.type === 'motorcycle' ? 'motorcycle' : 'car'
+  const distanceUnit: DistanceUnit = vehicle.distanceUnit === 'mi' ? 'mi' : 'km'
   return {
-    version: 1,
-    vehicle: { name: vehicle.name, currentKm: vehicle.currentKm },
+    version: 2,
+    vehicle: {
+      name: vehicle.name,
+      currentKm: vehicle.currentKm,
+      type,
+      distanceUnit,
+    },
     items: data.items.filter(isItem),
   }
 }
 
-function buildDefaultItems(km: number): MaintenanceItem[] {
+function buildDefaultItems(km: number, type: VehicleType, unit: DistanceUnit): MaintenanceItem[] {
   const today = todayISO()
-  return PRESETS.map(preset => ({
+  return PRESETS[type][unit].map(preset => ({
     ...preset,
     id: newId(),
     lastKm: km,
@@ -403,11 +612,17 @@ export function useGarage(userId: string | null) {
     }
   }, [userId])
 
-  function start(name: string, km: number) {
+  function start(name: string, distance: number, type: VehicleType, unit: DistanceUnit) {
+    const currentKm = Math.max(0, Math.round(fromDisplayDistance(distance, unit)))
     setGarage({
-      version: 1,
-      vehicle: { name: name.trim() || 'Mi carro', currentKm: Math.max(0, Math.round(km)) },
-      items: buildDefaultItems(Math.max(0, Math.round(km))),
+      version: 2,
+      vehicle: {
+        name: name.trim() || (type === 'motorcycle' ? 'Mi moto' : 'Mi carro'),
+        currentKm,
+        type,
+        distanceUnit: unit,
+      },
+      items: buildDefaultItems(currentKm, type, unit),
     })
   }
 
@@ -418,11 +633,14 @@ export function useGarage(userId: string | null) {
       return {
         ...prev,
         vehicle: {
+          ...prev.vehicle,
           name: name || prev.vehicle.name,
           currentKm:
             patch.currentKm !== undefined
               ? Math.max(0, Math.round(patch.currentKm))
               : prev.vehicle.currentKm,
+          type: patch.type ?? prev.vehicle.type,
+          distanceUnit: patch.distanceUnit ?? prev.vehicle.distanceUnit,
         },
       }
     })
@@ -465,7 +683,7 @@ export function useGarage(userId: string | null) {
           : item,
       )
       return {
-        version: 1,
+        version: 2,
         vehicle: {
           ...prev.vehicle,
           currentKm: Math.max(prev.vehicle.currentKm, record.km),

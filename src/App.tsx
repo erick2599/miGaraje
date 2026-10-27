@@ -7,7 +7,7 @@ import { ItemDialog } from './components/ItemDialog'
 import { ServiceDialog } from './components/ServiceDialog'
 import { SetupScreen } from './components/SetupScreen'
 import { VehicleDialog } from './components/VehicleDialog'
-import { formatKm, getDue, remainingText, sortByUrgency } from './maintenance'
+import { formatDistanceValue, getDue, remainingText, sortByUrgency } from './maintenance'
 import { useAuth } from './useAuth'
 import { useGarage } from './useGarage'
 import type { Filter, ItemDraft, MaintenanceItem, ServiceDraft } from './types'
@@ -51,9 +51,10 @@ export default function App() {
 
   const view = useMemo(() => {
     if (!garage) return null
-    const enriched = sortByUrgency(garage.items, garage.vehicle.currentKm).map(item => ({
+    const unit = garage.vehicle.distanceUnit
+    const enriched = sortByUrgency(garage.items, garage.vehicle.currentKm, unit).map(item => ({
       item,
-      due: getDue(item, garage.vehicle.currentKm),
+      due: getDue(item, garage.vehicle.currentKm, unit),
     }))
     const counts = { overdue: 0, soon: 0, ok: 0 }
     for (const entry of enriched) {
@@ -210,12 +211,13 @@ export default function App() {
             type="button"
             className="odo"
             onClick={() => setDialog({ kind: 'vehicle' })}
-            title="Actualizar nombre y kilometraje"
+            title="Actualizar nombre, tipo, unidad y odómetro"
           >
             <span className="odo__value">
-              {formatKm(vehicle.currentKm)} <small>km</small>
+              {formatDistanceValue(vehicle.currentKm, vehicle.distanceUnit)}{' '}
+              <small>{vehicle.distanceUnit}</small>
             </span>
-            <span className="odo__action">Actualizar kilometraje</span>
+            <span className="odo__action">Actualizar odómetro</span>
           </button>
         </div>
       </header>
@@ -244,7 +246,9 @@ export default function App() {
               {priority.due.status === 'overdue' ? 'Necesita atención' : 'Próximo servicio'}
             </p>
             <h2 className="banner__title">{priority.item.name}</h2>
-            <p className="banner__text">{remainingText(priority.due)}</p>
+            <p className="banner__text">
+              {remainingText(priority.due, vehicle.distanceUnit)}
+            </p>
           </div>
           <button
             type="button"
@@ -261,7 +265,7 @@ export default function App() {
               <p className="banner__label">Todo al día</p>
               <h2 className="banner__title">No hay servicios pendientes</h2>
               <p className="banner__text">
-                Actualizá el kilometraje seguido para que los cálculos sigan siendo reales.
+                Actualizá el odómetro seguido para que los cálculos sigan siendo reales.
               </p>
             </div>
           </section>
@@ -309,6 +313,7 @@ export default function App() {
               key={entry.item.id}
               item={entry.item}
               currentKm={vehicle.currentKm}
+              unit={vehicle.distanceUnit}
               onRegister={item => setDialog({ kind: 'service', item })}
               onEdit={item => setDialog({ kind: 'edit-item', item })}
               onDelete={handleDelete}
@@ -317,7 +322,7 @@ export default function App() {
         </section>
       )}
 
-      <Guide />
+      <Guide vehicleType={vehicle.type} distanceUnit={vehicle.distanceUnit} />
 
       <footer className="footer">
         <p>
@@ -343,6 +348,7 @@ export default function App() {
         <ItemDialog
           key="new-item"
           defaultKm={vehicle.currentKm}
+          unit={vehicle.distanceUnit}
           onClose={() => setDialog({ kind: 'none' })}
           onSubmit={handleItemSubmit}
         />
@@ -353,6 +359,7 @@ export default function App() {
           key={dialog.item.id}
           item={dialog.item}
           defaultKm={vehicle.currentKm}
+          unit={vehicle.distanceUnit}
           onClose={() => setDialog({ kind: 'none' })}
           onSubmit={handleItemSubmit}
         />
@@ -363,6 +370,7 @@ export default function App() {
           key={dialog.item.id}
           item={dialog.item}
           currentKm={vehicle.currentKm}
+          unit={vehicle.distanceUnit}
           onClose={() => setDialog({ kind: 'none' })}
           onSubmit={handleServiceSubmit}
         />

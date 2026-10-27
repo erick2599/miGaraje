@@ -56,8 +56,9 @@ export function useAuth() {
   }
 
   /**
-   * Verifica el código de 6 dígitos del email. Es el camino recomendado en
-   * iPhone: el enlace abriría Safari y la sesión no quedaría en la app instalada.
+   * Verifica el código de verificación del email (Supabase puede enviarlo de 6
+   * a 10 dígitos). Es el camino recomendado en iPhone: el enlace abriría Safari
+   * y la sesión no quedaría en la app instalada.
    */
   async function verifyCode(email: string, token: string): Promise<AuthResult> {
     if (!supabase) return { error: 'Supabase no está configurado.' }

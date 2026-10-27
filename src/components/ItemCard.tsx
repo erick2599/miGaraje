@@ -1,31 +1,32 @@
 import {
   categoryMeta,
   formatDate,
-  formatKm,
+  formatDistance,
   getDue,
   remainingText,
   STATUS_LABEL,
 } from '../maintenance'
-import type { MaintenanceItem } from '../types'
+import type { DistanceUnit, MaintenanceItem } from '../types'
 
 type Props = {
   item: MaintenanceItem
   currentKm: number
+  unit: DistanceUnit
   onRegister: (item: MaintenanceItem) => void
   onEdit: (item: MaintenanceItem) => void
   onDelete: (item: MaintenanceItem) => void
 }
 
-export function ItemCard({ item, currentKm, onRegister, onEdit, onDelete }: Props) {
-  const due = getDue(item, currentKm)
+export function ItemCard({ item, currentKm, unit, onRegister, onEdit, onDelete }: Props) {
+  const due = getDue(item, currentKm, unit)
   const meta = categoryMeta(item.category)
 
   const nextParts: string[] = []
-  if (due.dueKm !== null) nextParts.push(`${formatKm(due.dueKm)} km`)
+  if (due.dueKm !== null) nextParts.push(formatDistance(due.dueKm, unit))
   if (due.dueDate !== null) nextParts.push(formatDate(due.dueDate))
 
   const intervalParts: string[] = []
-  if (item.intervalKm !== null) intervalParts.push(`cada ${formatKm(item.intervalKm)} km`)
+  if (item.intervalKm !== null) intervalParts.push(`cada ${formatDistance(item.intervalKm, unit)}`)
   if (item.intervalMonths !== null) {
     intervalParts.push(`cada ${item.intervalMonths} ${item.intervalMonths === 1 ? 'mes' : 'meses'}`)
   }
@@ -50,7 +51,7 @@ export function ItemCard({ item, currentKm, onRegister, onEdit, onDelete }: Prop
         <div>
           <dt>Último</dt>
           <dd>
-            {item.lastKm !== null ? `${formatKm(item.lastKm)} km` : '—'}
+            {item.lastKm !== null ? formatDistance(item.lastKm, unit) : '—'}
             <span className="item__sep"> · </span>
             {formatDate(item.lastDate)}
           </dd>
@@ -66,7 +67,7 @@ export function ItemCard({ item, currentKm, onRegister, onEdit, onDelete }: Prop
           <div className="bar" aria-hidden="true">
             <span className={`bar__fill bar__fill--${due.status}`} style={{ width: `${due.progress * 100}%` }} />
           </div>
-          <p className="item__remaining">{remainingText(due)}</p>
+          <p className="item__remaining">{remainingText(due, unit)}</p>
         </div>
       )}
 
@@ -97,7 +98,7 @@ export function ItemCard({ item, currentKm, onRegister, onEdit, onDelete }: Prop
             {item.history.map(record => (
               <li key={record.id}>
                 <span className="item__history-main">
-                  {formatDate(record.date)} · {formatKm(record.km)} km
+                  {formatDate(record.date)} · {formatDistance(record.km, unit)}
                 </span>
                 {record.note && <span className="item__history-note">{record.note}</span>}
               </li>

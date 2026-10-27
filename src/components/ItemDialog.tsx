@@ -1,21 +1,26 @@
 import { useState, type FormEvent } from 'react'
 import { Modal } from './Modal'
-import { CATEGORIES, todayISO } from '../maintenance'
-import type { Category, ItemDraft, MaintenanceItem } from '../types'
+import { CATEGORIES, fromDisplayDistance, toDisplayDistance, todayISO } from '../maintenance'
+import type { Category, DistanceUnit, ItemDraft, MaintenanceItem } from '../types'
 
 type Props = {
   item?: MaintenanceItem
   defaultKm: number
+  unit: DistanceUnit
   onClose: () => void
   onSubmit: (draft: ItemDraft) => void
 }
 
-export function ItemDialog({ item, defaultKm, onClose, onSubmit }: Props) {
+export function ItemDialog({ item, defaultKm, unit, onClose, onSubmit }: Props) {
   const [name, setName] = useState(item?.name ?? '')
   const [category, setCategory] = useState<Category>(item?.category ?? 'aceite')
-  const [intervalKm, setIntervalKm] = useState(item?.intervalKm?.toString() ?? '')
+  const [intervalDistance, setIntervalDistance] = useState(
+    item?.intervalKm != null ? String(Math.round(toDisplayDistance(item.intervalKm, unit))) : '',
+  )
   const [intervalMonths, setIntervalMonths] = useState(item?.intervalMonths?.toString() ?? '')
-  const [lastKm, setLastKm] = useState(String(item?.lastKm ?? defaultKm))
+  const [lastDistance, setLastDistance] = useState(
+    String(Math.round(toDisplayDistance(item?.lastKm ?? defaultKm, unit))),
+  )
   const [lastDate, setLastDate] = useState(item?.lastDate ?? todayISO())
   const [note, setNote] = useState(item?.note ?? '')
   const [error, setError] = useState('')
@@ -28,30 +33,30 @@ export function ItemDialog({ item, defaultKm, onClose, onSubmit }: Props) {
       return
     }
 
-    const kmValue = intervalKm.trim() === '' ? null : Number(intervalKm)
+    const distanceValue = intervalDistance.trim() === '' ? null : Number(intervalDistance)
     const monthsValue = intervalMonths.trim() === '' ? null : Number(intervalMonths)
 
-    if (kmValue !== null && (!Number.isFinite(kmValue) || kmValue <= 0)) {
-      setError('El intervalo en kilómetros debe ser mayor a cero.')
+    if (distanceValue !== null && (!Number.isFinite(distanceValue) || distanceValue <= 0)) {
+      setError('El intervalo de distancia debe ser mayor a cero.')
       return
     }
     if (monthsValue !== null && (!Number.isFinite(monthsValue) || monthsValue <= 0)) {
       setError('El intervalo en meses debe ser mayor a cero.')
       return
     }
-    if (kmValue === null && monthsValue === null) {
-      setError('Definí al menos un intervalo: kilómetros, meses o ambos.')
+    if (distanceValue === null && monthsValue === null) {
+      setError('Definí al menos un intervalo: distancia, meses o ambos.')
       return
     }
 
     let kmLast: number | null = null
-    if (kmValue !== null) {
-      const parsed = Number(lastKm.replace(/[^\d]/g, ''))
-      if (lastKm.trim() === '' || !Number.isFinite(parsed)) {
-        setError('Indicá en qué kilometraje se hizo el último servicio.')
+    if (distanceValue !== null) {
+      const parsed = Number(lastDistance.replace(/[^\d]/g, ''))
+      if (lastDistance.trim() === '' || !Number.isFinite(parsed)) {
+        setError('Indicá en qué odómetro se hizo el último servicio.')
         return
       }
-      kmLast = parsed
+      kmLast = Math.round(fromDisplayDistance(parsed, unit))
     }
 
     const dateLast = monthsValue !== null ? lastDate : lastDate || null
@@ -63,7 +68,8 @@ export function ItemDialog({ item, defaultKm, onClose, onSubmit }: Props) {
     onSubmit({
       name: cleanName,
       category,
-      intervalKm: kmValue === null ? null : Math.round(kmValue),
+      intervalKm:
+        distanceValue === null ? null : Math.round(fromDisplayDistance(distanceValue, unit)),
       intervalMonths: monthsValue === null ? null : Math.round(monthsValue),
       lastKm: kmLast,
       lastDate: dateLast,
@@ -117,14 +123,14 @@ export function ItemDialog({ item, defaultKm, onClose, onSubmit }: Props) {
                 type="number"
                 min={0}
                 step={1}
-                value={intervalKm}
+                value={intervalDistance}
                 onChange={event => {
-                  setIntervalKm(event.target.value)
+                  setIntervalDistance(event.target.value)
                   setError('')
                 }}
-                placeholder="5000"
+                placeholder={unit === 'mi' ? '3000' : '5000'}
               />
-              <span className="input-group__suffix">km</span>
+              <span className="input-group__suffix">{unit}</span>
             </div>
           </label>
 
@@ -151,19 +157,19 @@ export function ItemDialog({ item, defaultKm, onClose, onSubmit }: Props) {
 
         <div className="field-row">
           <label className="field">
-            <span className="field__label">Último servicio: km</span>
+            <span className="field__label">Último servicio: odómetro</span>
             <div className="input-group">
               <input
                 className="input"
-                value={lastKm}
+                value={lastDistance}
                 onChange={event => {
-                  setLastKm(event.target.value)
+                  setLastDistance(event.target.value)
                   setError('')
                 }}
                 inputMode="numeric"
-                placeholder={String(defaultKm)}
+                placeholder={String(Math.round(toDisplayDistance(defaultKm, unit)))}
               />
-              <span className="input-group__suffix">km</span>
+              <span className="input-group__suffix">{unit}</span>
             </div>
           </label>
 

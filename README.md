@@ -1,11 +1,16 @@
-# Garaje — mantenimiento del carro
+# Garaje — mantenimiento de carro y moto
 
-App para llevar el plan y el historial de mantenimiento de tu carro: aceite, llantas, frenos,
-revisiones, kilometraje y vencimientos. Funciona como **PWA** en iPhone, Android y escritorio,
-guarda todo **sin conexión** y puede sincronizar entre dispositivos con **Supabase**.
+App para llevar el plan y el historial de mantenimiento de tu carro o moto: aceite, llantas, frenos,
+revisiones, odómetro y vencimientos. Funciona como **PWA** en iPhone, Android y escritorio, guarda
+todo **sin conexión** y puede sincronizar entre dispositivos con **Supabase**.
+
+Elegí **kilómetros o millas** y el tipo de vehículo (**carro/camioneta** o **motocicleta**). La app
+adapta el plan inicial, los textos y la guía a cada caso.
 
 Hecha con React + TypeScript + Vite. Sin backend propio: el modo local funciona solo y la nube es
 opcional.
+
+**App publicada:** https://garaje-mantenimiento.vercel.app
 
 ## Arrancar
 
@@ -26,22 +31,40 @@ sincronización, seguí la sección [Configurar Supabase](#configurar-supabase).
 
 ## Qué hace
 
-- Onboarding con nombre y kilometraje; crea un plan con 8 servicios típicos (aceite, rotación y
-  cambio de llantas, frenos, revisión general, filtros, refrigerante y batería).
-- Cada servicio tiene **intervalo por km y/o por meses** (podés usar uno o los dos).
+- Onboarding con nombre, **tipo de vehículo** y **unidad** (km o millas). Crea un plan inicial
+  distinto para carro (aceite, rotación y cambio de llantas, frenos, revisión general, filtros,
+  refrigerante y batería) o para moto (aceite, cadena/correa, llantas, frenos, cables, refrigerante
+  y batería).
+- Cada servicio tiene **intervalo por distancia y/o por meses** (podés usar uno o los dos).
+- Las distancias se guardan en **kilómetros** como unidad canónica: si elegís millas, la app
+  convierte la visualización y los datos que ingresás, sin perder los datos existentes.
 - Calcula el próximo vencimiento desde el último servicio y muestra:
-  - **Vencido** si ya pasaste los km o la fecha.
+  - **Vencido** si ya pasaste la distancia o la fecha.
   - **Próximo** si falta poco (10% del intervalo o 30 días).
   - **Al día** en el resto.
-- Barra de progreso del intervalo y texto tipo “faltan 800 km · en 12 días”.
-- **Registrar servicio**: guarda fecha, km y detalle en el historial, actualiza el último servicio
-  y sube el kilometraje si corresponde.
+- Barra de progreso del intervalo y texto tipo “faltan 800 km · en 12 días” o “faltan 500 mi”.
+- **Registrar servicio**: guarda fecha, odómetro y detalle en el historial, actualiza el último
+  servicio y sube el odómetro si corresponde.
 - Alta, edición y borrado de servicios personalizados.
+- Cambio de unidad y tipo desde el diálogo del vehículo; los servicios actuales se conservan.
 - Filtros por estado y resumen con contadores.
-- Guía rápida de mantenimiento integrada.
+- Guía rápida de mantenimiento adaptada a carro o moto y a la unidad elegida.
 - Tema claro/oscuro automático, responsive y accesible.
 - **PWA instalable**, con funcionamiento offline y actualización automática.
 - **Cuenta opcional** con sincronización entre dispositivos (Supabase + RLS).
+- Los garajes viejos (versión 1, solo km) se migran automáticamente a carro + km.
+
+## Unidades y tipos de vehículo
+
+- **Unidad por garaje:** kilómetros (`km`) o millas (`mi`). Se elige al crear el garaje y se puede
+  cambiar desde **Vehículo**. El cambio solo afecta cómo se muestran e ingresan las distancias.
+- **Tipo:** `car` (carro/camioneta) o `motorcycle` (motocicleta). Define los servicios iniciales y
+  la guía rápida. Cambiarlo después no borra ni modifica los servicios que ya tenés.
+- **Datos canónicos:** `currentKm`, `intervalKm`, `lastKm` y `history[].km` siempre están en
+  kilómetros. Al elegir millas, la app convierte al mostrar y al guardar:
+  `millas × 1,609344 = km`.
+- **Migración:** los datos viejos (`version: 1`) no tienen tipo ni unidad; se interpretan como
+  carro + kilómetros y se guardan como `version: 2` en el próximo cambio.
 
 ## Instalar en el celular
 
@@ -50,7 +73,7 @@ sincronización, seguí la sección [Configurar Supabase](#configurar-supabase).
 1. Abrí la app publicada en **Safari**.
 2. Tocá **Compartir** → **Añadir a pantalla de inicio**.
 3. Abrilá desde el ícono nuevo.
-4. Para sincronizar, entrá con tu email y usá el **código de 6 dígitos**. No uses el enlace del
+4. Para sincronizar, entrá con tu email y usá el **código de verificación**. No uses el enlace del
    correo en iPhone: abre Safari y la sesión quedaría en Safari, no en la app instalada.
 
 La app instalada tiene su propio almacenamiento, separado de Safari. Por eso conviene
@@ -84,8 +107,8 @@ El esquema crea:
 
 ### 2. Activar el acceso por email y el código
 
-El acceso por email viene activado por defecto. Para que la app pueda pedir un **código de 6
-dígitos**, editá la plantilla **Magic Link**:
+El acceso por email viene activado por defecto. Para que la app pueda pedir un **código de
+verificación**, editá la plantilla **Magic Link**:
 
 1. **Authentication** → **Email Templates** → **Magic Link**.
 2. Asunto sugerido: `Código de acceso a Garaje`.
@@ -101,6 +124,11 @@ dígitos**, editá la plantilla **Magic Link**:
 
 Sin `{{ .Token }}` el email solo trae el enlace. En iPhone el enlace abre Safari, así que el
 código es el camino recomendado.
+
+Supabase puede generar códigos de **6 a 10 dígitos**; los proyectos nuevos suelen usar **8**.
+La app acepta ese rango. Si querés cambiarlo, andá a **Authentication** → **Sign In / Providers**
+→ **Email** → **Email OTP length**. Si el código no coincide con el largo configurado, la
+verificación va a fallar.
 
 ### 3. Configurar URLs de redirección
 
@@ -138,12 +166,16 @@ sirve para probar pero no para publicar. Para producción, configurá un SMTP pr
 **Authentication** → **Emails** → **SMTP Settings** (Resend, Brevo, SendGrid, etc.). Revisá también
 los [rate limits de Supabase](https://supabase.com/docs/guides/auth/rate-limits).
 
+> **Estado actual:** la app publicada usa Gmail SMTP como solución temporal
+> (`erick2599@gmail.com`, contraseña de aplicación). Sirve para el lanzamiento inicial, pero para
+> una app pública conviene pasar a un dominio propio + Resend/Brevo para mejorar la entregabilidad.
+
 ### 6. Probar
 
 1. Con la app abierta, tocá el chip de cuenta → **Iniciar sesión**.
 2. Ingresá tu email y pedí el código.
-3. Pegá el código de 6 dígitos. La app carga el garaje de la nube; si la cuenta es nueva, sube el
-   garaje de ese dispositivo.
+3. Pegá el código completo (6 a 10 dígitos). La app carga el garaje de la nube; si la cuenta es
+   nueva, sube el garaje de ese dispositivo.
 4. Abrí la app en otro dispositivo, entrá con el mismo email y verificá que aparezca el mismo
    garaje.
 
@@ -158,6 +190,10 @@ los [rate limits de Supabase](https://supabase.com/docs/guides/auth/rate-limits)
 6. Copiá el dominio (`https://tu-app.vercel.app`) y actualizá **Site URL** + **Redirect URLs** en
    Supabase.
 7. Probá el login y la instalación desde el celular.
+
+También se puede publicar sin GitHub usando la CLI: `npx vercel link` y después
+`npx vercel deploy --prod`. En ese caso, cargá las variables con
+`npx vercel env add VITE_SUPABASE_URL --environment production,preview,development`.
 
 No hace falta `vercel.json`: la app no usa rutas del lado del cliente y Vercel sirve `index.html`
 y los assets estáticos directamente.
@@ -230,15 +266,15 @@ src/
   maintenance.ts           Cálculos de vencimiento, orden y formato
   types.ts                 Tipos del dominio
   components/
-    SetupScreen.tsx        Onboarding (nombre + km)
+    SetupScreen.tsx        Onboarding (tipo, unidad, nombre y odómetro)
     ItemCard.tsx           Tarjeta de un servicio
     ItemDialog.tsx         Crear/editar servicio
     ServiceDialog.tsx      Registrar un servicio hecho
-    VehicleDialog.tsx      Editar nombre y kilometraje
+    VehicleDialog.tsx      Editar nombre, tipo, unidad y odómetro
     AccountDialog.tsx      Login, cuenta y estado de sincronización
     InstallCard.tsx        Instalación en iOS/Android/escritorio
     Modal.tsx              Diálogo base
-    Guide.tsx              Guía rápida
+    Guide.tsx              Guía rápida según carro/moto y unidad
   styles.css               Estilos y temas
 public/
   favicon.svg              Ícono vectorial
@@ -254,7 +290,7 @@ scripts/
 
 ## Cómo se calcula el estado
 
-En `maintenance.ts`, `getDue()` combina las dos dimensiones:
+En `maintenance.ts`, `getDue()` combina las dos dimensiones. Las distancias internas están en km:
 
 ```text
 dueKm    = lastKm + intervalKm
@@ -265,8 +301,9 @@ daysLeft = dueDate - hoy
 ```
 
 - Vencido si `kmLeft < 0` o `daysLeft < 0`.
-- Próximo si `kmLeft <= max(300, 10% del intervalo)` o `daysLeft <= 30`.
-- El progreso es el mayor entre `km usados / intervalo` y `días usados / meses del intervalo`.
+- Próximo si `kmLeft <= max(300 km o 200 mi, 10% del intervalo)` o `daysLeft <= 30`.
+- El progreso es el mayor entre `distancia usada / intervalo` y `días usados / meses del intervalo`.
+- Para mostrar millas se convierte `km / 1,609344`; para guardar, `mi × 1,609344` redondeado a km.
 
 ## Ideas para seguir
 
@@ -274,9 +311,9 @@ daysLeft = dueDate - hoy
 2. **Recordatorios**: notificaciones web (en iOS requieren la PWA instalada) o exportar `.ics`.
 3. **Varios vehículos**: lista de garajes con selector.
 4. **Exportar/importar JSON**: respaldo real de los datos.
-5. **Modo millas**: cambiar unidad y convertir intervalos.
+5. **Plantillas por marca/modelo**: intervalos más precisos que los genéricos.
 6. **Borrado de cuenta** autoservicio con una Edge Function.
-7. **Tests**: Vitest para `getDue` (bordes de fecha, meses cortos, km negativos).
+7. **Tests**: Vitest para `getDue` (bordes de fecha, meses cortos, km negativos) y conversión km/mi.
 8. **App nativa** con Capacitor, solo si la PWA crece.
 
 ## Aviso

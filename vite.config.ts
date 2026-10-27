@@ -9,10 +9,10 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Garaje — Mantenimiento del carro',
+        name: 'Garaje — Mantenimiento de carro y moto',
         short_name: 'Garaje',
         description:
-          'Plan de mantenimiento del carro: aceite, llantas, frenos, revisiones, kilometraje e historial.',
+          'Plan y historial de mantenimiento para carro y moto, en kilómetros o millas: aceite, llantas, frenos, revisiones y vencimientos.',
         lang: 'es',
         dir: 'ltr',
         start_url: '/',

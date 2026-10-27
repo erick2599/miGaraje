@@ -1,6 +1,31 @@
-import type { Category, MaintenanceItem, Status } from './types'
+import type { Category, DistanceUnit, MaintenanceItem, Status } from './types'
 
 const DAY = 86_400_000
+
+/** Kilómetros que tiene una milla. */
+export const KM_PER_MILE = 1.609344
+
+/** Mínimo para marcar un servicio como próximo, según la unidad visible. */
+const SOON_KM = 300
+const SOON_MILES = 200
+
+export function kmToMiles(km: number): number {
+  return km / KM_PER_MILE
+}
+
+export function milesToKm(miles: number): number {
+  return Math.round(miles * KM_PER_MILE)
+}
+
+/** Convierte kilómetros canónicos a la unidad que ve el usuario. */
+export function toDisplayDistance(km: number, unit: DistanceUnit): number {
+  return unit === 'mi' ? kmToMiles(km) : km
+}
+
+/** Convierte la distancia que ingresa el usuario a kilómetros canónicos. */
+export function fromDisplayDistance(value: number, unit: DistanceUnit): number {
+  return unit === 'mi' ? value * KM_PER_MILE : value
+}
 
 export function todayISO(): string {
   return toISO(new Date())
@@ -33,8 +58,18 @@ export function daysBetween(fromISO: string, toISOValue: string): number {
   return Math.round((parseISO(toISOValue).getTime() - parseISO(fromISO).getTime()) / DAY)
 }
 
-export function formatKm(km: number): string {
-  return new Intl.NumberFormat('es').format(Math.round(km))
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat('es').format(Math.round(value))
+}
+
+/** Número de distancia sin la unidad, para inputs y bloques que ya muestran la unidad. */
+export function formatDistanceValue(km: number, unit: DistanceUnit): string {
+  return formatNumber(toDisplayDistance(km, unit))
+}
+
+/** Distancia con unidad, por ejemplo "8.000 km" o "5.000 mi". */
+export function formatDistance(km: number, unit: DistanceUnit): string {
+  return `${formatDistanceValue(km, unit)} ${unit}`
 }
 
 export function formatDate(iso: string | null): string {
@@ -58,7 +93,11 @@ export type DueInfo = {
   progress: number
 }
 
-export function getDue(item: MaintenanceItem, currentKm: number): DueInfo {
+export function getDue(
+  item: MaintenanceItem,
+  currentKm: number,
+  unit: DistanceUnit = 'km',
+): DueInfo {
   const dueKm =
     item.intervalKm !== null && item.lastKm !== null ? item.lastKm + item.intervalKm : null
   const kmLeft = dueKm !== null ? dueKm - currentKm : null
@@ -74,7 +113,10 @@ export function getDue(item: MaintenanceItem, currentKm: number): DueInfo {
   }
 
   const overdue = (kmLeft !== null && kmLeft < 0) || (daysLeft !== null && daysLeft < 0)
-  const soonKm = item.intervalKm !== null ? Math.max(300, item.intervalKm * 0.1) : 0
+  const soonKm = Math.max(
+    unit === 'mi' ? SOON_MILES * KM_PER_MILE : SOON_KM,
+    (item.intervalKm ?? 0) * 0.1,
+  )
   const soon = (kmLeft !== null && kmLeft <= soonKm) || (daysLeft !== null && daysLeft <= 30)
 
   const ratios: number[] = []
@@ -113,10 +155,11 @@ export const STATUS_LABEL: Record<Status, string> = {
 export function sortByUrgency(
   items: MaintenanceItem[],
   currentKm: number,
+  unit: DistanceUnit = 'km',
 ): MaintenanceItem[] {
   return [...items].sort((a, b) => {
-    const dueA = getDue(a, currentKm)
-    const dueB = getDue(b, currentKm)
+    const dueA = getDue(a, currentKm, unit)
+    const dueB = getDue(b, currentKm, unit)
     const byStatus = STATUS_ORDER[dueA.status] - STATUS_ORDER[dueB.status]
     if (byStatus !== 0) return byStatus
     const byProgress = dueB.progress - dueA.progress
@@ -125,11 +168,11 @@ export function sortByUrgency(
   })
 }
 
-export function kmText(kmLeft: number | null): string | null {
+export function distanceText(kmLeft: number | null, unit: DistanceUnit): string | null {
   if (kmLeft === null) return null
-  if (kmLeft < 0) return `vencido por ${formatKm(Math.abs(kmLeft))} km`
+  if (kmLeft < 0) return `vencido por ${formatDistance(Math.abs(kmLeft), unit)}`
   if (kmLeft === 0) return 'vence hoy'
-  return `faltan ${formatKm(kmLeft)} km`
+  return `faltan ${formatDistance(kmLeft, unit)}`
 }
 
 export function daysText(daysLeft: number | null): string | null {
@@ -142,8 +185,8 @@ export function daysText(daysLeft: number | null): string | null {
   return `en ${daysLeft} ${daysLeft === 1 ? 'día' : 'días'}`
 }
 
-export function remainingText(due: DueInfo): string {
-  const km = kmText(due.kmLeft)
+export function remainingText(due: DueInfo, unit: DistanceUnit): string {
+  const km = distanceText(due.kmLeft, unit)
   const days = daysText(due.daysLeft)
 
   if (due.status === 'overdue') {

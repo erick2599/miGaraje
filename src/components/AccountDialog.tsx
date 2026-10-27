@@ -180,27 +180,30 @@ export function AccountDialog({
             <span className="dot dot--synced" /> Código enviado
           </p>
           <p className="account__text">
-            Te mandamos un email a <strong>{sentTo}</strong> con un enlace y un código de 6
-            dígitos.
+            Te mandamos un email a <strong>{sentTo}</strong> con un enlace y un código de
+            verificación.
           </p>
           <label className="field">
-            <span className="field__label">Código de 6 dígitos</span>
+            <span className="field__label">Código de verificación</span>
             <input
               className="input account__code"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
               pattern="[0-9]*"
-              maxLength={6}
+              maxLength={10}
               value={code}
               onChange={event => {
-                setCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                setCode(event.target.value.replace(/\D/g, '').slice(0, 10))
                 setError('')
               }}
-              placeholder="000000"
+              placeholder="00000000"
               autoFocus
             />
           </label>
+          <p className="account__hint">
+            Pegá el código completo: Supabase puede enviarlo de 6 a 10 dígitos.
+          </p>
           {error && <p className="form-error">{error}</p>}
           <button
             type="submit"
@@ -229,8 +232,8 @@ export function AccountDialog({
       ) : (
         <form className="form" onSubmit={handleSignIn}>
           <p className="account__text">
-            Entrá con tu email. Te enviamos un código de 6 dígitos para que no tengas que recordar
-            contraseñas.
+            Entrá con tu email. Te enviamos un código de verificación para que no tengas que
+            recordar contraseñas.
           </p>
           <label className="field">
             <span className="field__label">Email</span>
