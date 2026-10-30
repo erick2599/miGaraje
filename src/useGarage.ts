@@ -296,12 +296,18 @@ function newId(): string {
 function isRecord(value: unknown): value is ServiceRecord {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
-  return (
-    typeof record.id === 'string' &&
-    typeof record.date === 'string' &&
-    typeof record.km === 'number' &&
-    typeof record.note === 'string'
-  )
+  if (
+    typeof record.id !== 'string' ||
+    typeof record.date !== 'string' ||
+    typeof record.km !== 'number' ||
+    typeof record.note !== 'string'
+  ) {
+    return false
+  }
+  if (record.partsCost !== undefined && typeof record.partsCost !== 'number') return false
+  if (record.laborCost !== undefined && typeof record.laborCost !== 'number') return false
+  if (record.totalCost !== undefined && typeof record.totalCost !== 'number') return false
+  return true
 }
 
 function isItem(value: unknown): value is MaintenanceItem {
@@ -671,7 +677,15 @@ export function useGarage(userId: string | null) {
   function registerService(id: string, draft: ServiceDraft) {
     setGarage(prev => {
       if (!prev) return prev
-      const record: ServiceRecord = { ...draft, id: newId(), note: draft.note.trim() }
+      const record: ServiceRecord = {
+        id: newId(),
+        date: draft.date,
+        km: draft.km,
+        note: draft.note.trim(),
+        partsCost: draft.partsCost,
+        laborCost: draft.laborCost,
+        totalCost: draft.totalCost,
+      }
       const items = prev.items.map(item =>
         item.id === id
           ? {

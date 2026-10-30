@@ -21,6 +21,12 @@ export type ServiceRecord = {
   /** Kilómetros al momento del servicio. */
   km: number
   note: string
+  /** Costo de refacciones en la moneda local. */
+  partsCost?: number
+  /** Costo de mano de obra en la moneda local. */
+  laborCost?: number
+  /** Costo total del servicio. */
+  totalCost?: number
 }
 
 export type MaintenanceItem = {
@@ -72,4 +78,7 @@ export type ServiceDraft = {
   /** Odómetro del servicio, en kilómetros. */
   km: number
   note: string
+  partsCost?: number
+  laborCost?: number
+  totalCost?: number
 }

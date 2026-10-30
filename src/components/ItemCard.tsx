@@ -8,6 +8,10 @@ import {
 } from '../maintenance'
 import type { DistanceUnit, MaintenanceItem } from '../types'
 
+function formatCurrency(value: number): string {
+  return value.toLocaleString('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 type Props = {
   item: MaintenanceItem
   currentKm: number
@@ -95,14 +99,26 @@ export function ItemCard({ item, currentKm, unit, onRegister, onEdit, onDelete }
             Historial <span className="item__history-count">{item.history.length}</span>
           </summary>
           <ul>
-            {item.history.map(record => (
-              <li key={record.id}>
-                <span className="item__history-main">
-                  {formatDate(record.date)} · {formatDistance(record.km, unit)}
-                </span>
-                {record.note && <span className="item__history-note">{record.note}</span>}
-              </li>
-            ))}
+            {item.history.map(record => {
+              const parts = record.partsCost ?? 0
+              const labor = record.laborCost ?? 0
+              const total = record.totalCost ?? (parts > 0 || labor > 0 ? parts + labor : undefined)
+              const hasCost = total !== undefined && total > 0
+              return (
+                <li key={record.id}>
+                  <span className="item__history-main">
+                    {formatDate(record.date)} · {formatDistance(record.km, unit)}
+                    {hasCost && <span> · {formatCurrency(total)}</span>}
+                  </span>
+                  {hasCost && (
+                    <span className="item__history-note">
+                      Refacciones: {formatCurrency(parts)} · Mano de obra: {formatCurrency(labor)}
+                    </span>
+                  )}
+                  {record.note && <span className="item__history-note">{record.note}</span>}
+                </li>
+              )
+            })}
           </ul>
         </details>
       )}
