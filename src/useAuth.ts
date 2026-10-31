@@ -18,6 +18,13 @@ function friendlyError(error: AuthError): string {
   return error.message
 }
 
+function unexpectedAuthError(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return `No se pudo completar el acceso: ${error.message}. Revisá la conexión e intentá de nuevo.`
+  }
+  return 'No se pudo completar el acceso. Revisá la conexión e intentá de nuevo.'
+}
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(supabase !== null)
@@ -45,14 +52,18 @@ export function useAuth() {
 
   async function signIn(email: string): Promise<AuthResult> {
     if (!supabase) return { error: 'Supabase no está configurado.' }
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-        shouldCreateUser: true,
-      },
-    })
-    return error ? { error: friendlyError(error) } : {}
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: {
+          emailRedirectTo: window.location.origin,
+          shouldCreateUser: true,
+        },
+      })
+      return error ? { error: friendlyError(error) } : {}
+    } catch (error) {
+      return { error: unexpectedAuthError(error) }
+    }
   }
 
   /**
@@ -62,15 +73,23 @@ export function useAuth() {
    */
   async function verifyCode(email: string, token: string): Promise<AuthResult> {
     if (!supabase) return { error: 'Supabase no está configurado.' }
-    const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
-    return error ? { error: friendlyError(error) } : {}
+    try {
+      const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+      return error ? { error: friendlyError(error) } : {}
+    } catch (error) {
+      return { error: unexpectedAuthError(error) }
+    }
   }
 
   async function signOut(): Promise<AuthResult> {
     if (!supabase) return {}
     // scope local: cierra solo este dispositivo y no necesita red.
-    const { error } = await supabase.auth.signOut({ scope: 'local' })
-    return error ? { error: error.message } : {}
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      return error ? { error: error.message } : {}
+    } catch (error) {
+      return { error: unexpectedAuthError(error) }
+    }
   }
 
   return {

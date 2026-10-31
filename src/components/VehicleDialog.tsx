@@ -4,17 +4,20 @@ import { formatDistance, fromDisplayDistance, toDisplayDistance } from '../maint
 import type { DistanceUnit, Vehicle, VehicleType } from '../types'
 
 type Props = {
-  vehicle: Vehicle
+  vehicle?: Vehicle
+  mode?: 'add' | 'edit'
   onClose: () => void
-  onSave: (patch: Partial<Vehicle>) => void
+  onSave: (patch: Partial<Vehicle>, mode: 'add' | 'edit') => void
 }
 
-export function VehicleDialog({ vehicle, onClose, onSave }: Props) {
-  const [name, setName] = useState(vehicle.name)
-  const [type, setType] = useState<VehicleType>(vehicle.type)
-  const [unit, setUnit] = useState<DistanceUnit>(vehicle.distanceUnit)
+export function VehicleDialog({ vehicle, mode = 'edit', onClose, onSave }: Props) {
+  const isAdd = mode === 'add'
+  const initial = vehicle
+  const [name, setName] = useState(initial?.name ?? '')
+  const [type, setType] = useState<VehicleType>(initial?.type ?? 'car')
+  const [unit, setUnit] = useState<DistanceUnit>(initial?.distanceUnit ?? 'km')
   const [distance, setDistance] = useState(
-    String(Math.round(toDisplayDistance(vehicle.currentKm, vehicle.distanceUnit))),
+    initial ? String(Math.round(toDisplayDistance(initial.currentKm, initial.distanceUnit))) : '',
   )
   const [error, setError] = useState('')
 
@@ -36,19 +39,22 @@ export function VehicleDialog({ vehicle, onClose, onSave }: Props) {
       setError('Ingresá un odómetro válido.')
       return
     }
-    onSave({
-      name,
-      currentKm: Math.round(fromDisplayDistance(parsed, unit)),
-      type,
-      distanceUnit: unit,
-    })
+    onSave(
+      {
+        name,
+        currentKm: Math.round(fromDisplayDistance(parsed, unit)),
+        type,
+        distanceUnit: unit,
+      },
+      isAdd ? 'add' : 'edit',
+    )
     onClose()
   }
 
   return (
     <Modal
-      title="Vehículo"
-      subtitle="Actualizá el nombre, el tipo, la unidad y el odómetro."
+      title={isAdd ? 'Añadir vehículo' : 'Vehículo'}
+      subtitle={isAdd ? 'Agregá otro carro o moto al garaje.' : 'Actualizá el nombre, el tipo, la unidad y el odómetro.'}
       onClose={onClose}
     >
       <form className="form" onSubmit={handleSubmit}>
@@ -104,14 +110,18 @@ export function VehicleDialog({ vehicle, onClose, onSave }: Props) {
             />
             <span className="input-group__suffix">{unit}</span>
           </div>
-          <span className="field__hint">
-            Odómetro guardado: {formatDistance(vehicle.currentKm, unit)}
-          </span>
+          {initial && (
+            <span className="field__hint">
+              Odómetro guardado: {formatDistance(initial.currentKm, unit)}
+            </span>
+          )}
         </label>
 
-        <p className="field__hint">
-          El tipo se usa para la guía. Cambiarlo no borra ni modifica los servicios actuales.
-        </p>
+        {!isAdd && (
+          <p className="field__hint">
+            El tipo se usa para la guía. Cambiarlo no borra ni modifica los servicios actuales.
+          </p>
+        )}
 
         {error && <p className="form-error">{error}</p>}
 

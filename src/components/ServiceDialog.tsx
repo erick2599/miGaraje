@@ -113,46 +113,51 @@ export function ServiceDialog({ item, currentKm, unit, onClose, onSubmit }: Prop
 
         <div className="field-row">
           <label className="field">
-            <span className="field__label">Costo de refacciones (opcional)</span>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              value={partsCost}
-              onChange={event => {
-                setPartsCost(event.target.value)
-                setError('')
-              }}
-              placeholder="0.00"
-            />
+            <span className="field__label">Costo de refacciones (USD, opcional)</span>
+            <div className="input-group">
+              <span className="input-group__suffix">$</span>
+              <input
+                className="input"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                value={partsCost}
+                onChange={event => {
+                  setPartsCost(event.target.value)
+                  setError('')
+                }}
+                placeholder="0.00"
+              />
+            </div>
           </label>
 
           <label className="field">
-            <span className="field__label">Costo de mano de obra (opcional)</span>
-            <input
-              className="input"
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              value={laborCost}
-              onChange={event => {
-                setLaborCost(event.target.value)
-                setError('')
-              }}
-              placeholder="0.00"
-            />
+            <span className="field__label">Costo de mano de obra (USD, opcional)</span>
+            <div className="input-group">
+              <span className="input-group__suffix">$</span>
+              <input
+                className="input"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                value={laborCost}
+                onChange={event => {
+                  setLaborCost(event.target.value)
+                  setError('')
+                }}
+                placeholder="0.00"
+              />
+            </div>
           </label>
         </div>
 
         {(partsCost.trim() !== '' || laborCost.trim() !== '') && (
           <p className="form-hint">
-            Costo total:{' '}
-            {(
+            Costo total: ${(
               (parseCost(partsCost) ?? 0) + (parseCost(laborCost) ?? 0)
-            ).toLocaleString('es-CR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
         )}
 

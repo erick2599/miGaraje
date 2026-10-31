@@ -31,6 +31,7 @@ export type ServiceRecord = {
 
 export type MaintenanceItem = {
   id: string
+  vehicleId: string
   name: string
   category: Category
   /** Intervalo en kilómetros. */
@@ -44,6 +45,7 @@ export type MaintenanceItem = {
 }
 
 export type Vehicle = {
+  id: string
   name: string
   /** Odómetro actual, siempre en kilómetros. */
   currentKm: number
@@ -52,8 +54,9 @@ export type Vehicle = {
 }
 
 export type Garage = {
-  version: 2
-  vehicle: Vehicle
+  version: 3
+  vehicles: Vehicle[]
+  activeVehicleId: string
   items: MaintenanceItem[]
 }
 

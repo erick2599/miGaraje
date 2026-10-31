@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   categoryMeta,
   formatDate,
@@ -6,10 +7,19 @@ import {
   remainingText,
   STATUS_LABEL,
 } from '../maintenance'
-import type { DistanceUnit, MaintenanceItem } from '../types'
+import type { DistanceUnit, MaintenanceItem, ServiceRecord } from '../types'
 
 function formatCurrency(value: number): string {
-  return value.toLocaleString('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function parseOptionalCost(value: string): { valid: boolean; value?: number } {
+  const trimmed = value.trim()
+  if (trimmed === '') return { valid: true }
+
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed) || parsed < 0) return { valid: false }
+  return { valid: true, value: Math.round(parsed * 100) / 100 }
 }
 
 type Props = {
@@ -19,9 +29,196 @@ type Props = {
   onRegister: (item: MaintenanceItem) => void
   onEdit: (item: MaintenanceItem) => void
   onDelete: (item: MaintenanceItem) => void
+  onEditHistory?: (itemId: string, recordId: string, patch: Partial<ServiceRecord>) => void
+  onDeleteHistory?: (itemId: string, recordId: string) => void
 }
 
-export function ItemCard({ item, currentKm, unit, onRegister, onEdit, onDelete }: Props) {
+type HistoryRecordRowProps = {
+  itemId: string
+  record: ServiceRecord
+  unit: DistanceUnit
+  onEditHistory?: Props['onEditHistory']
+  onDeleteHistory?: Props['onDeleteHistory']
+}
+
+function HistoryRecordRow({
+  itemId,
+  record,
+  unit,
+  onEditHistory,
+  onDeleteHistory,
+}: HistoryRecordRowProps) {
+  const [editing, setEditing] = useState(false)
+  const [date, setDate] = useState(record.date || '')
+  const [km, setKm] = useState(String(Math.round(record.km || 0)))
+  const [note, setNote] = useState(record.note || '')
+  const [pCost, setPCost] = useState(
+    typeof record.partsCost === 'number' ? record.partsCost.toString() : '',
+  )
+  const [lCost, setLCost] = useState(
+    typeof record.laborCost === 'number' ? record.laborCost.toString() : '',
+  )
+  const [error, setError] = useState('')
+  const parts = typeof record.partsCost === 'number' ? record.partsCost : 0
+  const labor = typeof record.laborCost === 'number' ? record.laborCost : 0
+  const total =
+    typeof record.totalCost === 'number'
+      ? record.totalCost
+      : parts > 0 || labor > 0
+        ? parts + labor
+        : undefined
+  const hasCost = typeof total === 'number' && total > 0
+
+  if (!editing) {
+    return (
+      <li>
+        <span className="item__history-main">
+          {formatDate(record.date)} · {formatDistance(record.km, unit)}
+          {hasCost && <span> · {formatCurrency(total)}</span>}
+        </span>
+        {hasCost && (
+          <span className="item__history-note">
+            Refacciones: {formatCurrency(parts)} · Mano de obra: {formatCurrency(labor)}
+          </span>
+        )}
+        {record.note && <span className="item__history-note">{record.note}</span>}
+        {(onEditHistory || onDeleteHistory) && (
+          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+            {onEditHistory && (
+              <button type="button" className="link" onClick={() => setEditing(true)}>
+                Editar
+              </button>
+            )}
+            {onDeleteHistory && (
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  if (window.confirm('¿Eliminar este registro del historial?')) {
+                    onDeleteHistory(itemId, record.id)
+                  }
+                }}
+              >
+                Eliminar
+              </button>
+            )}
+          </div>
+        )}
+      </li>
+    )
+  }
+
+  function save() {
+    if (!onEditHistory) return
+    const parsedKm = Number(km)
+    if (km.trim() === '' || !Number.isFinite(parsedKm) || parsedKm < 0) {
+      setError('Ingresá un odómetro válido.')
+      return
+    }
+
+    const parsedParts = parseOptionalCost(pCost)
+    const parsedLabor = parseOptionalCost(lCost)
+    if (!parsedParts.valid || !parsedLabor.valid) {
+      setError('Los costos deben ser valores mayores o iguales a cero, o quedar vacíos.')
+      return
+    }
+
+    const totalCost =
+      parsedParts.value !== undefined || parsedLabor.value !== undefined
+        ? (parsedParts.value ?? 0) + (parsedLabor.value ?? 0)
+        : undefined
+    onEditHistory(itemId, record.id, {
+      date,
+      km: parsedKm,
+      note,
+      partsCost: parsedParts.value,
+      laborCost: parsedLabor.value,
+      totalCost,
+    })
+    setEditing(false)
+    setError('')
+  }
+
+  return (
+    <li>
+      <div className="field-row">
+        <label className="field">
+          <span className="field__label">Fecha</span>
+          <input
+            className="input"
+            type="date"
+            value={date}
+            onChange={event => setDate(event.target.value)}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">Km</span>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            value={km}
+            onChange={event => setKm(event.target.value)}
+          />
+        </label>
+      </div>
+      <label className="field">
+        <span className="field__label">Nota</span>
+        <input className="input" value={note} onChange={event => setNote(event.target.value)} />
+      </label>
+      <div className="field-row">
+        <label className="field">
+          <span className="field__label">Refacciones ($)</span>
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={pCost}
+            onChange={event => {
+              setPCost(event.target.value)
+              setError('')
+            }}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">Mano de obra ($)</span>
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step="0.01"
+            value={lCost}
+            onChange={event => {
+              setLCost(event.target.value)
+              setError('')
+            }}
+          />
+        </label>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button type="button" className="btn btn--primary btn--sm" onClick={save}>
+          Guardar
+        </button>
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={() => {
+            setEditing(false)
+            setError('')
+          }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </li>
+  )
+}
+
+export function ItemCard({ item, currentKm, unit, onRegister, onEdit, onDelete, onEditHistory, onDeleteHistory }: Props) {
   const due = getDue(item, currentKm, unit)
   const meta = categoryMeta(item.category)
 
@@ -96,29 +293,19 @@ export function ItemCard({ item, currentKm, unit, onRegister, onEdit, onDelete }
       {item.history.length > 0 && (
         <details className="item__history">
           <summary>
-            Historial <span className="item__history-count">{item.history.length}</span>
+            Historial             <span className="item__history-count">{item.history.length}</span>
           </summary>
           <ul>
-            {item.history.map(record => {
-              const parts = record.partsCost ?? 0
-              const labor = record.laborCost ?? 0
-              const total = record.totalCost ?? (parts > 0 || labor > 0 ? parts + labor : undefined)
-              const hasCost = total !== undefined && total > 0
-              return (
-                <li key={record.id}>
-                  <span className="item__history-main">
-                    {formatDate(record.date)} · {formatDistance(record.km, unit)}
-                    {hasCost && <span> · {formatCurrency(total)}</span>}
-                  </span>
-                  {hasCost && (
-                    <span className="item__history-note">
-                      Refacciones: {formatCurrency(parts)} · Mano de obra: {formatCurrency(labor)}
-                    </span>
-                  )}
-                  {record.note && <span className="item__history-note">{record.note}</span>}
-                </li>
-              )
-            })}
+            {item.history.map(record => (
+              <HistoryRecordRow
+                key={record.id}
+                itemId={item.id}
+                record={record}
+                unit={unit}
+                onEditHistory={onEditHistory}
+                onDeleteHistory={onDeleteHistory}
+              />
+            ))}
           </ul>
         </details>
       )}

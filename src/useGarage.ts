@@ -28,6 +28,43 @@ type GarageRow = {
   client_id: string | null
 }
 
+function syncErrorMessage(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof error.message === 'string'
+        ? error.message
+        : null
+  return message
+    ? `No se pudo conectar con Supabase: ${message}. Revisá la conexión e intentá de nuevo.`
+    : 'No se pudo conectar con Supabase. Revisá la conexión e intentá de nuevo.'
+}
+
+function garageFormatSummary(value: unknown): string {
+  let candidate = value
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate)
+    } catch {
+      return 'La nube devolvió un valor que no es JSON.'
+    }
+  }
+  if (typeof candidate !== 'object' || candidate === null) {
+    return 'La nube no devolvió un objeto de garaje.'
+  }
+
+  const data = candidate as Record<string, unknown>
+  const version =
+    typeof data.version === 'string' || typeof data.version === 'number'
+      ? String(data.version)
+      : 'sin versión'
+  const keys = Object.keys(data).slice(0, 12).join(', ') || 'sin campos'
+  return `Formato remoto: versión ${version}; campos: ${keys}.`
+}
+
 type Preset = Pick<
   MaintenanceItem,
   'name' | 'category' | 'intervalKm' | 'intervalMonths' | 'note'
@@ -293,8 +330,8 @@ function newId(): string {
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function isRecord(value: unknown): value is ServiceRecord {
-  if (typeof value !== 'object' || value === null) return false
+function parseServiceRecord(value: unknown): ServiceRecord | null {
+  if (typeof value !== 'object' || value === null) return null
   const record = value as Record<string, unknown>
   if (
     typeof record.id !== 'string' ||
@@ -302,64 +339,173 @@ function isRecord(value: unknown): value is ServiceRecord {
     typeof record.km !== 'number' ||
     typeof record.note !== 'string'
   ) {
-    return false
+    return null
   }
-  if (record.partsCost !== undefined && typeof record.partsCost !== 'number') return false
-  if (record.laborCost !== undefined && typeof record.laborCost !== 'number') return false
-  if (record.totalCost !== undefined && typeof record.totalCost !== 'number') return false
-  return true
-}
 
-function isItem(value: unknown): value is MaintenanceItem {
-  if (typeof value !== 'object' || value === null) return false
-  const item = value as Record<string, unknown>
-  return (
-    typeof item.id === 'string' &&
-    typeof item.name === 'string' &&
-    typeof item.category === 'string' &&
-    (item.intervalKm === null || typeof item.intervalKm === 'number') &&
-    (item.intervalMonths === null || typeof item.intervalMonths === 'number') &&
-    (item.lastKm === null || typeof item.lastKm === 'number') &&
-    (item.lastDate === null || typeof item.lastDate === 'string') &&
-    typeof item.note === 'string' &&
-    Array.isArray(item.history) &&
-    item.history.every(isRecord)
-  )
-}
-
-export function parseGarage(value: unknown): Garage | null {
-  if (typeof value !== 'object' || value === null) return null
-  const data = value as Record<string, unknown>
-  // Acepta garajes viejos (v1, solo km) y los migra al formato actual.
-  if (data.version !== 1 && data.version !== 2) return null
-  const vehicle = data.vehicle as Record<string, unknown> | undefined
+  const partsCost = record.partsCost ?? record.coste_refaccion
+  const laborCost = record.laborCost ?? record.costo_mano_obra
+  const totalCost = record.totalCost
+  const isValidCost = (cost: unknown) =>
+    cost === undefined ||
+    cost === null ||
+    (typeof cost === 'string' && cost.trim() === '') ||
+    (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0) ||
+    (typeof cost === 'string' && Number.isFinite(Number(cost)) && Number(cost) >= 0)
   if (
-    !vehicle ||
-    typeof vehicle.name !== 'string' ||
-    typeof vehicle.currentKm !== 'number' ||
-    !Array.isArray(data.items)
+    !isValidCost(partsCost) ||
+    !isValidCost(laborCost) ||
+    !isValidCost(totalCost)
   ) {
     return null
   }
-  const type: VehicleType = vehicle.type === 'motorcycle' ? 'motorcycle' : 'car'
-  const distanceUnit: DistanceUnit = vehicle.distanceUnit === 'mi' ? 'mi' : 'km'
+
+  const normalizeCost = (cost: unknown) => {
+    if (cost === undefined || cost === null || (typeof cost === 'string' && cost.trim() === '')) {
+      return undefined
+    }
+    const parsed = typeof cost === 'number' ? cost : Number(cost)
+    return Math.round(parsed * 100) / 100
+  }
+
   return {
-    version: 2,
-    vehicle: {
-      name: vehicle.name,
-      currentKm: vehicle.currentKm,
-      type,
-      distanceUnit,
-    },
-    items: data.items.filter(isItem),
+    id: record.id,
+    date: record.date,
+    km: record.km,
+    note: record.note,
+    partsCost: normalizeCost(partsCost),
+    laborCost: normalizeCost(laborCost),
+    totalCost: normalizeCost(totalCost),
   }
 }
 
-function buildDefaultItems(km: number, type: VehicleType, unit: DistanceUnit): MaintenanceItem[] {
+function normalizeVehicle(value: unknown, fallbackId: string): Vehicle | null {
+  if (typeof value !== 'object' || value === null) return null
+  const raw = value as Record<string, unknown>
+  const type: VehicleType = raw.type === 'motorcycle' ? 'motorcycle' : 'car'
+  const currentKm = Number(raw.currentKm)
+  return {
+    id: typeof raw.id === 'string' && raw.id ? raw.id : fallbackId,
+    name:
+      typeof raw.name === 'string' && raw.name.trim()
+        ? raw.name
+        : type === 'motorcycle'
+          ? 'Mi moto'
+          : 'Mi carro',
+    currentKm: Number.isFinite(currentKm) ? Math.max(0, Math.round(currentKm)) : 0,
+    type,
+    distanceUnit: raw.distanceUnit === 'mi' ? 'mi' : 'km',
+  }
+}
+
+function normalizeItems(rawItems: unknown[], vehicleIds: Set<string>, fallbackVehicleId: string) {
+  return rawItems
+    .map(item => {
+      if (typeof item !== 'object' || item === null) return null
+      const base = item as Record<string, unknown>
+      if (typeof base.id !== 'string' || typeof base.name !== 'string' || typeof base.category !== 'string') {
+        return null
+      }
+
+      const vehicleId =
+        typeof base.vehicleId === 'string' && vehicleIds.has(base.vehicleId)
+          ? base.vehicleId
+          : fallbackVehicleId
+      const history = Array.isArray(base.history)
+        ? base.history
+            .map(parseServiceRecord)
+            .filter((record): record is ServiceRecord => record !== null)
+        : []
+      return {
+        id: base.id,
+        vehicleId,
+        name: base.name,
+        category: base.category as MaintenanceItem['category'],
+        intervalKm:
+          typeof base.intervalKm === 'number' || base.intervalKm === null
+            ? base.intervalKm
+            : null,
+        intervalMonths:
+          typeof base.intervalMonths === 'number' || base.intervalMonths === null
+            ? base.intervalMonths
+            : null,
+        lastKm: typeof base.lastKm === 'number' || base.lastKm === null ? base.lastKm : null,
+        lastDate:
+          typeof base.lastDate === 'string' || base.lastDate === null ? base.lastDate : null,
+        note: typeof base.note === 'string' ? base.note : '',
+        history,
+      } satisfies MaintenanceItem
+    })
+    .filter((item): item is MaintenanceItem => item !== null)
+}
+
+export function parseGarage(value: unknown): Garage | null {
+  if (typeof value === 'string') {
+    try {
+      return parseGarage(JSON.parse(value))
+    } catch {
+      return null
+    }
+  }
+  if (typeof value !== 'object' || value === null) return null
+  const data = value as Record<string, unknown>
+  if (
+    !Array.isArray(data.vehicles) &&
+    !Array.isArray(data.items) &&
+    typeof data.garage === 'object' &&
+    data.garage !== null
+  ) {
+    return parseGarage(data.garage)
+  }
+
+  const rawItems = Array.isArray(data.items) ? data.items : []
+  const vehicles = Array.isArray(data.vehicles)
+    ? data.vehicles
+        .map((vehicle, index) => normalizeVehicle(vehicle, `vehicle-${index + 1}`))
+        .filter((vehicle): vehicle is Vehicle => vehicle !== null)
+    : []
+  if (vehicles.length > 0) {
+    const activeVehicleId =
+      typeof data.activeVehicleId === 'string' && vehicles.some(v => v.id === data.activeVehicleId)
+        ? data.activeVehicleId
+        : vehicles[0].id
+    const items = normalizeItems(rawItems, new Set(vehicles.map(vehicle => vehicle.id)), activeVehicleId)
+    return {
+      version: 3,
+      vehicles,
+      activeVehicleId,
+      items,
+    }
+  }
+
+  // Acepta el formato de un solo vehículo aunque use una versión futura.
+  const legacyVehicle = normalizeVehicle(data.vehicle, 'vehicle-1')
+  if (legacyVehicle && Array.isArray(data.items)) {
+    const items = normalizeItems(rawItems, new Set([legacyVehicle.id]), legacyVehicle.id)
+    return {
+      version: 3,
+      vehicles: [legacyVehicle],
+      activeVehicleId: legacyVehicle.id,
+      items,
+    }
+  }
+
+  if (typeof data.data === 'object' && data.data !== null) {
+    return parseGarage(data.data)
+  }
+
+  /*
+   * Legacy shape is also normalized above; unsupported payloads are left
+   * untouched in the cloud so local edits cannot overwrite them automatically.
+   */
+  return null
+}
+
+function buildDefaultItems(vehicleId: string, km: number, type: VehicleType, unit: DistanceUnit): MaintenanceItem[] {
   const today = todayISO()
   return PRESETS[type][unit].map(preset => ({
     ...preset,
     id: newId(),
+    vehicleId,
     lastKm: km,
     lastDate: today,
     history: [],
@@ -426,12 +572,22 @@ export function useGarage(userId: string | null) {
       if (activeUserRef.current !== uid) return false
       const json = JSON.stringify(data)
       setSyncStatus('saving')
-      const { error } = await client.from('garages').upsert({
-        user_id: uid,
-        data,
-        client_id: clientId.current,
-        updated_at: new Date().toISOString(),
-      })
+      let error: { message: string } | null
+      try {
+        const result = await client.from('garages').upsert({
+          user_id: uid,
+          data,
+          client_id: clientId.current,
+          updated_at: new Date().toISOString(),
+        })
+        error = result.error
+      } catch (caught) {
+        if (activeUserRef.current === uid) {
+          setSyncStatus('error')
+          setSyncError(syncErrorMessage(caught))
+        }
+        return false
+      }
       if (activeUserRef.current !== uid) return false
       if (error) {
         setSyncStatus('error')
@@ -465,11 +621,23 @@ export function useGarage(userId: string | null) {
     setSyncStatus('loading')
     setSyncError(null)
 
-    const { data, error } = await supabase
-      .from('garages')
-      .select('data, updated_at')
-      .eq('user_id', uid)
-      .maybeSingle()
+    let data: { data: unknown; updated_at: string } | null
+    let error: { message: string } | null
+    try {
+      const result = await supabase
+        .from('garages')
+        .select('data, updated_at')
+        .eq('user_id', uid)
+        .maybeSingle()
+      data = result.data
+      error = result.error
+    } catch (caught) {
+      if (seq === loadSeq.current && activeUserRef.current === uid) {
+        setSyncStatus('error')
+        setSyncError(syncErrorMessage(caught))
+      }
+      return false
+    }
 
     // Otra carga más nueva (o un cierre de sesión) invalida esta respuesta.
     if (seq !== loadSeq.current || activeUserRef.current !== uid) return false
@@ -484,7 +652,9 @@ export function useGarage(userId: string | null) {
       const parsed = parseGarage((data as GarageRow).data)
       if (!parsed) {
         setSyncStatus('error')
-        setSyncError('Los datos de la nube no tienen el formato esperado.')
+        setSyncError(
+          `${garageFormatSummary((data as GarageRow).data)} La copia local de este teléfono se conserva y no se sobrescribirá automáticamente.`,
+        )
         return false
       }
       lastSyncedJson.current = JSON.stringify(parsed)
@@ -499,12 +669,23 @@ export function useGarage(userId: string | null) {
     const local = garageRef.current
     if (local) {
       const json = JSON.stringify(local)
-      const { error: uploadError } = await supabase.from('garages').upsert({
-        user_id: uid,
-        data: local,
-        client_id: clientId.current,
-        updated_at: new Date().toISOString(),
-      })
+      let uploadError: { message: string } | null
+      try {
+        const result = await supabase.from('garages').upsert({
+          user_id: uid,
+          data: local,
+          client_id: clientId.current,
+          updated_at: new Date().toISOString(),
+        })
+        uploadError = result.error
+      } catch (caught) {
+        if (seq === loadSeq.current && activeUserRef.current === uid) {
+          setSyncStatus('error')
+          setSyncError(syncErrorMessage(caught))
+          setRemoteLoaded(true)
+        }
+        return false
+      }
       if (seq !== loadSeq.current || activeUserRef.current !== uid) return false
       if (uploadError) {
         setSyncStatus('error')
@@ -602,7 +783,13 @@ export function useGarage(userId: string | null) {
           if (current && JSON.stringify(current) !== lastSyncedJson.current) return
 
           const parsed = parseGarage(row.data)
-          if (!parsed) return
+          if (!parsed) {
+            setSyncStatus('error')
+            setSyncError(
+              `${garageFormatSummary(row.data)} La copia local se conserva.`,
+            )
+            return
+          }
           lastSyncedJson.current = JSON.stringify(parsed)
           setGarage(parsed)
           setLastSyncedAt(row.updated_at)
@@ -620,42 +807,80 @@ export function useGarage(userId: string | null) {
 
   function start(name: string, distance: number, type: VehicleType, unit: DistanceUnit) {
     const currentKm = Math.max(0, Math.round(fromDisplayDistance(distance, unit)))
+    const vehicleId = newId()
     setGarage({
-      version: 2,
-      vehicle: {
-        name: name.trim() || (type === 'motorcycle' ? 'Mi moto' : 'Mi carro'),
-        currentKm,
-        type,
-        distanceUnit: unit,
-      },
-      items: buildDefaultItems(currentKm, type, unit),
+      version: 3,
+      vehicles: [
+        {
+          id: vehicleId,
+          name: name.trim() || (type === 'motorcycle' ? 'Mi moto' : 'Mi carro'),
+          currentKm,
+          type,
+          distanceUnit: unit,
+        },
+      ],
+      activeVehicleId: vehicleId,
+      items: buildDefaultItems(vehicleId, currentKm, type, unit),
     })
   }
 
-  function updateVehicle(patch: Partial<Vehicle>) {
+  function updateVehicle(patch: Partial<Vehicle> & { id?: string }) {
     setGarage(prev => {
       if (!prev) return prev
-      const name = patch.name?.trim()
+      const id = patch.id ?? prev.activeVehicleId
       return {
         ...prev,
-        vehicle: {
-          ...prev.vehicle,
-          name: name || prev.vehicle.name,
-          currentKm:
-            patch.currentKm !== undefined
-              ? Math.max(0, Math.round(patch.currentKm))
-              : prev.vehicle.currentKm,
-          type: patch.type ?? prev.vehicle.type,
-          distanceUnit: patch.distanceUnit ?? prev.vehicle.distanceUnit,
-        },
+        vehicles: prev.vehicles.map(v => {
+          if (v.id !== id) return v
+          const name = patch.name?.trim()
+          return {
+            ...v,
+            name: name || v.name,
+            currentKm:
+              patch.currentKm !== undefined
+                ? Math.max(0, Math.round(patch.currentKm))
+                : v.currentKm,
+            type: patch.type ?? v.type,
+            distanceUnit: patch.distanceUnit ?? v.distanceUnit,
+          }
+        }),
       }
+    })
+  }
+
+  function addVehicle(name: string, distance: number, type: VehicleType, unit: DistanceUnit) {
+    const currentKm = Math.max(0, Math.round(fromDisplayDistance(distance, unit)))
+    const vehicleId = newId()
+    const vehicle: Vehicle = {
+      id: vehicleId,
+      name: name.trim() || (type === 'motorcycle' ? 'Mi moto' : 'Mi carro'),
+      currentKm,
+      type,
+      distanceUnit: unit,
+    }
+    setGarage(prev => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        vehicles: [...prev.vehicles, vehicle],
+        activeVehicleId: vehicleId,
+        items: [...prev.items, ...buildDefaultItems(vehicleId, currentKm, type, unit)],
+      }
+    })
+  }
+
+  function setActiveVehicle(id: string) {
+    setGarage(prev => {
+      if (!prev) return prev
+      if (!prev.vehicles.some(v => v.id === id)) return prev
+      return { ...prev, activeVehicleId: id }
     })
   }
 
   function addItem(draft: ItemDraft) {
     setGarage(prev => {
       if (!prev) return prev
-      const item: MaintenanceItem = { ...draft, id: newId(), history: [] }
+      const item: MaintenanceItem = { ...draft, id: newId(), vehicleId: prev.activeVehicleId, history: [] }
       return { ...prev, items: [...prev.items, item] }
     })
   }
@@ -677,6 +902,8 @@ export function useGarage(userId: string | null) {
   function registerService(id: string, draft: ServiceDraft) {
     setGarage(prev => {
       if (!prev) return prev
+      const item = prev.items.find(i => i.id === id)
+      const vehicleId = item?.vehicleId ?? prev.activeVehicleId
       const record: ServiceRecord = {
         id: newId(),
         date: draft.date,
@@ -686,25 +913,92 @@ export function useGarage(userId: string | null) {
         laborCost: draft.laborCost,
         totalCost: draft.totalCost,
       }
-      const items = prev.items.map(item =>
-        item.id === id
+      const items = prev.items.map(i =>
+        i.id === id
           ? {
-              ...item,
+              ...i,
               lastKm: record.km,
               lastDate: record.date,
-              history: [record, ...item.history],
+              history: [record, ...i.history],
             }
-          : item,
+          : i,
+      )
+      const vehicles = prev.vehicles.map(v =>
+        v.id === vehicleId ? { ...v, currentKm: Math.max(v.currentKm, record.km) } : v,
       )
       return {
-        version: 2,
-        vehicle: {
-          ...prev.vehicle,
-          currentKm: Math.max(prev.vehicle.currentKm, record.km),
-        },
+        ...prev,
+        vehicles,
         items,
       }
     })
+  }
+
+  function updateHistoryRecord(itemId: string, recordId: string, patch: Partial<ServiceRecord>) {
+    setGarage(prev => {
+      if (!prev) return prev
+      const items = prev.items.map(item => {
+        if (item.id !== itemId) return item
+        const history = item.history.map(record => {
+          if (record.id !== recordId) return record
+          const updated = { ...record, ...patch }
+          const parts = updated.partsCost ?? 0
+          const labor = updated.laborCost ?? 0
+          if (updated.partsCost !== undefined || updated.laborCost !== undefined) {
+            updated.totalCost = parts + labor
+          }
+          return updated
+        })
+        const latest = history[0]
+        return {
+          ...item,
+          lastKm: latest?.km ?? item.lastKm,
+          lastDate: latest?.date ?? item.lastDate,
+          history,
+        }
+      })
+      return { ...prev, items }
+    })
+  }
+
+  function removeHistoryRecord(itemId: string, recordId: string) {
+    setGarage(prev => {
+      if (!prev) return prev
+      const items = prev.items.map(item => {
+        if (item.id !== itemId) return item
+        const history = item.history.filter(record => record.id !== recordId)
+        const latest = history[0]
+        return {
+          ...item,
+          lastKm: latest?.km ?? null,
+          lastDate: latest?.date ?? null,
+          history,
+        }
+      })
+      return { ...prev, items }
+    })
+  }
+
+  function importGarage(data: unknown): boolean {
+    const parsed = parseGarage(data)
+    if (!parsed) return false
+    // Asegurar que todos los items tengan vehicleId asignado al vehículo activo
+    const vehicleId = parsed.activeVehicleId
+    const fixed = {
+      ...parsed,
+      items: parsed.items.map(item => ({
+        ...item,
+        vehicleId: item.vehicleId || vehicleId,
+      })),
+    }
+    lastSyncedJson.current = JSON.stringify(fixed)
+    setGarage(fixed)
+    setSyncStatus(supabase && userId ? 'saving' : 'local')
+    setSyncError(null)
+    if (supabase && userId) {
+      void pushNow(fixed)
+    }
+    return true
   }
 
   function clearLocalCache() {
@@ -718,9 +1012,28 @@ export function useGarage(userId: string | null) {
     setSyncError(null)
   }
 
+  function forceSyncFromLocal() {
+    const current = garageRef.current
+    if (!current) return
+    lastSyncedJson.current = JSON.stringify(current)
+    setSyncStatus('saving')
+    setSyncError(null)
+    void pushNow(current)
+  }
+
+  void forceSyncFromLocal
+
   async function reset(): Promise<boolean> {
     if (supabase && userId) {
-      const { error } = await supabase.from('garages').delete().eq('user_id', userId)
+      let error: { message: string } | null
+      try {
+        const result = await supabase.from('garages').delete().eq('user_id', userId)
+        error = result.error
+      } catch (caught) {
+        setSyncStatus('error')
+        setSyncError(syncErrorMessage(caught))
+        return false
+      }
       if (error) {
         setSyncStatus('error')
         setSyncError(error.message)
@@ -745,12 +1058,18 @@ export function useGarage(userId: string | null) {
     garage,
     start,
     updateVehicle,
+    addVehicle,
+    setActiveVehicle,
     addItem,
     updateItem,
     removeItem,
     registerService,
+    updateHistoryRecord,
+    removeHistoryRecord,
+    importGarage,
     reset,
     clearLocalCache,
+    forceSyncFromLocal,
     syncNow,
     cacheReady,
     syncStatus,

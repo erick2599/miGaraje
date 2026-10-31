@@ -113,7 +113,7 @@ export function AccountDialog({
       onClose={onClose}
     >
       {!configured ? (
-        <div className="account">
+        <div className="account-panel">
           <p className="account__status">
             <span className="dot dot--local" /> Modo local
           </p>
@@ -137,7 +137,7 @@ export function AccountDialog({
           <p className="account__hint">El paso a paso completo está en el README.</p>
         </div>
       ) : email ? (
-        <div className="account">
+        <div className="account-panel">
           <p className={`account__status account__status--${status}`}>
             <span className={`dot dot--${status}`} /> {SYNC_LABEL[status]}
           </p>
@@ -163,6 +163,9 @@ export function AccountDialog({
               disabled={status === 'saving' || status === 'loading'}
             >
               Sincronizar ahora
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm" onClick={() => { window.location.reload() }}>
+              Recargar app
             </button>
             <button type="button" className="btn btn--danger-ghost btn--sm" onClick={onSignOut}>
               Cerrar sesión

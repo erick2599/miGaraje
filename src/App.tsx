@@ -14,7 +14,8 @@ import type { Filter, ItemDraft, MaintenanceItem, ServiceDraft } from './types'
 
 type DialogState =
   | { kind: 'none' }
-  | { kind: 'vehicle' }
+  | { kind: 'vehicle'; id?: string }
+  | { kind: 'add-vehicle' }
   | { kind: 'new-item' }
   | { kind: 'edit-item'; item: MaintenanceItem }
   | { kind: 'service'; item: MaintenanceItem }
@@ -32,10 +33,15 @@ export default function App() {
     garage,
     start,
     updateVehicle,
+    addVehicle,
+    setActiveVehicle,
     addItem,
     updateItem,
     removeItem,
     registerService,
+    updateHistoryRecord,
+    removeHistoryRecord,
+    importGarage,
     reset,
     clearLocalCache,
     syncNow,
@@ -51,10 +57,13 @@ export default function App() {
 
   const view = useMemo(() => {
     if (!garage) return null
-    const unit = garage.vehicle.distanceUnit
-    const enriched = sortByUrgency(garage.items, garage.vehicle.currentKm, unit).map(item => ({
+    const vehicle = garage.vehicles.find(v => v.id === garage.activeVehicleId) ?? garage.vehicles[0]
+    if (!vehicle) return null
+    const items = garage.items.filter(i => i.vehicleId === vehicle.id)
+    const unit = vehicle.distanceUnit
+    const enriched = sortByUrgency(items, vehicle.currentKm, unit).map(item => ({
       item,
-      due: getDue(item, garage.vehicle.currentKm, unit),
+      due: getDue(item, vehicle.currentKm, unit),
     }))
     const counts = { overdue: 0, soon: 0, ok: 0 }
     for (const entry of enriched) {
@@ -64,7 +73,7 @@ export default function App() {
       enriched.find(entry => entry.due.status === 'overdue') ??
       enriched.find(entry => entry.due.status === 'soon') ??
       null
-    return { enriched, counts, priority }
+    return { vehicle, enriched, counts, priority }
   }, [garage])
 
   function handleItemSubmit(draft: ItemDraft) {
@@ -107,22 +116,16 @@ export default function App() {
     ) {
       return
     }
-    const saved = await syncNow()
-    if (
-      !saved &&
-      !window.confirm(
-        'No se pudo sincronizar. Si cerrás sesión ahora, los cambios de este dispositivo que no llegaron a la nube se pierden. ¿Cerrar sesión igual?',
-      )
-    ) {
-      return
-    }
+    try {
+      await syncNow()
+    } catch {}
     const result = await auth.signOut()
     if (result.error) {
       window.alert(result.error)
-      return
     }
     clearLocalCache()
     setAccountOpen(false)
+    window.location.reload()
   }
 
   const accountLabel = !auth.configured
@@ -136,16 +139,28 @@ export default function App() {
   const accountDot = auth.configured && auth.email ? syncStatus : 'local'
 
   const accountButton = (
-    <button
-      type="button"
-      className="account"
-      onClick={() => setAccountOpen(true)}
-      aria-haspopup="dialog"
-      aria-label={`Cuenta y sincronización — ${accountLabel}`}
-    >
-      <span className={`account__dot account__dot--${accountDot}`} aria-hidden="true" />
-      <span className="account__label">{accountLabel}</span>
-    </button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+      <button
+        type="button"
+        className="account"
+        onClick={() => setAccountOpen(true)}
+        aria-haspopup="dialog"
+        aria-label={`Cuenta y sincronización — ${accountLabel}`}
+      >
+        <span className={`account__dot account__dot--${accountDot}`} aria-hidden="true" />
+        <span className="account__label">{accountLabel}</span>
+      </button>
+      {auth.configured && auth.email && (
+        <button
+          type="button"
+          className="btn btn--ghost btn--sm"
+          onClick={() => void handleSignOut()}
+          title="Cerrar sesión"
+        >
+          Cerrar sesión
+        </button>
+      )}
+    </div>
   )
 
   const accountDialog = accountOpen ? (
@@ -189,10 +204,9 @@ export default function App() {
     )
   }
 
-  const { vehicle } = garage
-  const { counts, priority } = view
+  const { vehicle, counts, priority } = view
   const visible = filter === 'all' ? view.enriched : view.enriched.filter(entry => entry.due.status === filter)
-  const totalItems = garage.items.length
+  const totalItems = view.enriched.length
 
   function countFor(id: Filter) {
     return id === 'all' ? totalItems : counts[id]
@@ -203,14 +217,46 @@ export default function App() {
       <header className="topbar">
         <div className="topbar__id">
           <p className="eyebrow">Garaje</p>
-          <h1 className="title">{vehicle.name}</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            {garage.vehicles.length > 1 ? (
+              <select
+                className="input"
+                value={vehicle.id}
+                onChange={e => setActiveVehicle(e.target.value)}
+                aria-label="Seleccionar vehículo"
+                style={{ minWidth: '160px' }}
+              >
+                {garage.vehicles.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <h1 className="title">{vehicle.name}</h1>
+            )}
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => setDialog({ kind: 'add-vehicle' })}
+            >
+              + Añadir vehículo
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost btn--sm"
+              onClick={() => setDialog({ kind: 'vehicle', id: vehicle.id })}
+            >
+              Editar
+            </button>
+          </div>
         </div>
         <div className="topbar__actions">
           {accountButton}
           <button
             type="button"
             className="odo"
-            onClick={() => setDialog({ kind: 'vehicle' })}
+            onClick={() => setDialog({ kind: 'vehicle', id: vehicle.id })}
             title="Actualizar nombre, tipo, unidad y odómetro"
           >
             <span className="odo__value">
@@ -317,6 +363,8 @@ export default function App() {
               onRegister={item => setDialog({ kind: 'service', item })}
               onEdit={item => setDialog({ kind: 'edit-item', item })}
               onDelete={handleDelete}
+              onEditHistory={(itemId, recordId, patch) => updateHistoryRecord(itemId, recordId, patch)}
+              onDeleteHistory={(itemId, recordId) => removeHistoryRecord(itemId, recordId)}
             />
           ))}
         </section>
@@ -331,16 +379,73 @@ export default function App() {
             Privacidad
           </a>
         </p>
-        <button type="button" className="link" onClick={() => void handleReset()}>
-          Reiniciar garaje
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              if (!garage) return
+              const blob = new Blob([JSON.stringify(garage, null, 2)], { type: 'application/json' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `garaje-backup-${new Date().toISOString().slice(0, 10)}.json`
+              document.body.appendChild(a)
+              a.click()
+              document.body.removeChild(a)
+              URL.revokeObjectURL(url)
+            }}
+          >
+            Descargar copia JSON
+          </button>
+          <button
+            type="button"
+            className="link"
+            onClick={() => {
+              const input = document.createElement('input')
+              input.type = 'file'
+              input.accept = 'application/json'
+              input.onchange = async e => {
+                const file = (e.target as HTMLInputElement).files?.[0]
+                if (!file) return
+                try {
+                  const text = await file.text()
+                  const data = JSON.parse(text)
+                  const ok = importGarage(data)
+                  if (!ok) window.alert('No se pudo importar el archivo.')
+                  else window.alert('Datos importados correctamente.')
+                } catch {
+                  window.alert('Archivo inválido.')
+                }
+              }
+              input.click()
+            }}
+          >
+            Importar datos
+          </button>
+          <button type="button" className="link" onClick={() => void handleReset()}>
+            Reiniciar garaje
+          </button>
+        </div>
       </footer>
 
-      {dialog.kind === 'vehicle' && (
+      {(dialog.kind === 'vehicle' || dialog.kind === 'add-vehicle') && (
         <VehicleDialog
-          vehicle={vehicle}
+          vehicle={dialog.kind === 'add-vehicle' ? undefined : (garage.vehicles.find(v => v.id === dialog.id) ?? vehicle)}
+          mode={dialog.kind === 'add-vehicle' ? 'add' : 'edit'}
           onClose={() => setDialog({ kind: 'none' })}
-          onSave={updateVehicle}
+          onSave={(patch, mode) => {
+            if (mode === 'add') {
+              addVehicle(
+                patch.name ?? '',
+                patch.currentKm ?? 0,
+                patch.type ?? 'car',
+                patch.distanceUnit ?? 'km',
+              )
+            } else {
+              updateVehicle(patch)
+            }
+          }}
         />
       )}
 
