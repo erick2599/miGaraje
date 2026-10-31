@@ -3,6 +3,16 @@ import { Modal } from './Modal'
 import { CATEGORIES, fromDisplayDistance, toDisplayDistance, todayISO } from '../maintenance'
 import type { Category, DistanceUnit, ItemDraft, MaintenanceItem } from '../types'
 
+function parseCost(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (trimmed === '') return undefined
+  const normalized = trimmed.replace(',', '.').replace(/[^0-9.]/g, '')
+  if (normalized === '' || normalized === '.') return undefined
+  const parsed = Number(normalized)
+  if (!Number.isFinite(parsed) || parsed < 0) return undefined
+  return Math.round(parsed * 100) / 100
+}
+
 type Props = {
   item?: MaintenanceItem
   defaultKm: number
@@ -23,6 +33,9 @@ export function ItemDialog({ item, defaultKm, unit, onClose, onSubmit }: Props) 
   )
   const [lastDate, setLastDate] = useState(item?.lastDate ?? todayISO())
   const [note, setNote] = useState(item?.note ?? '')
+  const [partsCost, setPartsCost] = useState('')
+  const [laborCost, setLaborCost] = useState('')
+  const [registerNow, setRegisterNow] = useState(!item)
   const [error, setError] = useState('')
 
   function handleSubmit(event: FormEvent) {
@@ -65,6 +78,10 @@ export function ItemDialog({ item, defaultKm, unit, onClose, onSubmit }: Props) 
       return
     }
 
+    const parts = parseCost(partsCost)
+    const labor = parseCost(laborCost)
+    const total = parts !== undefined || labor !== undefined ? (parts ?? 0) + (labor ?? 0) : undefined
+
     onSubmit({
       name: cleanName,
       category,
@@ -74,6 +91,10 @@ export function ItemDialog({ item, defaultKm, unit, onClose, onSubmit }: Props) 
       lastKm: kmLast,
       lastDate: dateLast,
       note: note.trim(),
+      partsCost: parts,
+      laborCost: labor,
+      totalCost: total,
+      registerNow: !item && registerNow,
     })
   }
 
@@ -186,6 +207,58 @@ export function ItemDialog({ item, defaultKm, unit, onClose, onSubmit }: Props) 
             />
           </label>
         </div>
+
+        {!item && (
+          <>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input type="checkbox" checked={registerNow} onChange={e => setRegisterNow(e.target.checked)} />
+              <span>Registrar este servicio ya (agregar al historial con costos)</span>
+            </label>
+            {registerNow && (
+              <>
+                <div className="field-row">
+                  <label className="field">
+                    <span className="field__label">Costo de refacciones (USD)</span>
+                    <div className="input-group">
+                      <span className="input-group__suffix">$</span>
+                      <input
+                        className="input"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={0.01}
+                        value={partsCost}
+                        onChange={event => setPartsCost(event.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </label>
+                  <label className="field">
+                    <span className="field__label">Costo de mano de obra (USD)</span>
+                    <div className="input-group">
+                      <span className="input-group__suffix">$</span>
+                      <input
+                        className="input"
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={0.01}
+                        value={laborCost}
+                        onChange={event => setLaborCost(event.target.value)}
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </label>
+                </div>
+                {(partsCost.trim() !== '' || laborCost.trim() !== '') && (
+                  <p className="form-hint">
+                    Costo total: ${((parseCost(partsCost) ?? 0) + (parseCost(laborCost) ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                )}
+              </>
+            )}
+          </>
+        )}
 
         <label className="field">
           <span className="field__label">Nota (opcional)</span>

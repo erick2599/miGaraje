@@ -74,6 +74,10 @@ export type ItemDraft = {
   lastKm: number | null
   lastDate: string | null
   note: string
+  partsCost?: number
+  laborCost?: number
+  totalCost?: number
+  registerNow?: boolean
 }
 
 export type ServiceDraft = {

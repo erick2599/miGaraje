@@ -880,7 +880,25 @@ export function useGarage(userId: string | null) {
   function addItem(draft: ItemDraft) {
     setGarage(prev => {
       if (!prev) return prev
-      const item: MaintenanceItem = { ...draft, id: newId(), vehicleId: prev.activeVehicleId, history: [] }
+      const { partsCost, laborCost, totalCost, registerNow, ...rest } = draft as any
+      const item: MaintenanceItem = { ...rest, id: newId(), vehicleId: prev.activeVehicleId, history: [] }
+      if (registerNow && item.lastKm !== null && item.lastDate) {
+        const record: ServiceRecord = {
+          id: newId(),
+          date: item.lastDate,
+          km: item.lastKm,
+          note: item.note.trim(),
+          partsCost,
+          laborCost,
+          totalCost: totalCost ?? ((partsCost ?? 0) + (laborCost ?? 0) || undefined),
+        }
+        item.history = [record]
+        const vehicleId = prev.activeVehicleId
+        const vehicles = prev.vehicles.map(v =>
+          v.id === vehicleId ? { ...v, currentKm: Math.max(v.currentKm, record.km) } : v,
+        )
+        return { ...prev, vehicles, items: [...prev.items, item] }
+      }
       return { ...prev, items: [...prev.items, item] }
     })
   }
