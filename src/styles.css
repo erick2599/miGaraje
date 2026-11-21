@@ -1306,6 +1306,112 @@ ul {
   }
 }
 
+/* Adjuntos de servicio */
+.attachments {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.attachment {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 0;
+}
+
+.attachment__thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+  background: var(--surface);
+}
+
+.attachment__file {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.62rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.attachment__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.history-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.2rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: inherit;
+  text-decoration: none;
+  max-width: 100%;
+}
+
+.history-attachment:hover {
+  border-color: var(--accent);
+}
+
+.history-attachment__thumb {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 5px;
+  flex: 0 0 auto;
+}
+
+.history-attachment__file {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 0.58rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.history-attachment__name {
+  font-size: 0.72rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

@@ -367,6 +367,24 @@ function parseServiceRecord(value: unknown): ServiceRecord | null {
     return Math.round(parsed * 100) / 100
   }
 
+  const attachments = Array.isArray(record.attachments)
+    ? record.attachments
+        .map(a => {
+          if (typeof a !== 'object' || a === null) return null
+          const att = a as Record<string, unknown>
+          if (
+            typeof att.id !== 'string' ||
+            typeof att.name !== 'string' ||
+            typeof att.type !== 'string' ||
+            typeof att.dataUrl !== 'string'
+          ) {
+            return null
+          }
+          return { id: att.id, name: att.name, type: att.type, dataUrl: att.dataUrl }
+        })
+        .filter((a): a is { id: string; name: string; type: string; dataUrl: string } => a !== null)
+    : []
+
   return {
     id: record.id,
     date: record.date,
@@ -375,6 +393,7 @@ function parseServiceRecord(value: unknown): ServiceRecord | null {
     partsCost: normalizeCost(partsCost),
     laborCost: normalizeCost(laborCost),
     totalCost: normalizeCost(totalCost),
+    attachments: attachments.length > 0 ? attachments : undefined,
   }
 }
 
@@ -880,7 +899,7 @@ export function useGarage(userId: string | null) {
   function addItem(draft: ItemDraft) {
     setGarage(prev => {
       if (!prev) return prev
-      const { partsCost, laborCost, totalCost, registerNow, ...rest } = draft as any
+      const { partsCost, laborCost, totalCost, registerNow, attachments, ...rest } = draft as any
       const item: MaintenanceItem = { ...rest, id: newId(), vehicleId: prev.activeVehicleId, history: [] }
       if (registerNow && item.lastKm !== null && item.lastDate) {
         const record: ServiceRecord = {
@@ -891,6 +910,7 @@ export function useGarage(userId: string | null) {
           partsCost,
           laborCost,
           totalCost: totalCost ?? ((partsCost ?? 0) + (laborCost ?? 0) || undefined),
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
         }
         item.history = [record]
         const vehicleId = prev.activeVehicleId
@@ -930,6 +950,7 @@ export function useGarage(userId: string | null) {
         partsCost: draft.partsCost,
         laborCost: draft.laborCost,
         totalCost: draft.totalCost,
+        attachments: draft.attachments && draft.attachments.length > 0 ? draft.attachments : undefined,
       }
       const items = prev.items.map(i =>
         i.id === id

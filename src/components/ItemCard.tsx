@@ -82,6 +82,28 @@ function HistoryRecordRow({
           </span>
         )}
         {record.note && <span className="item__history-note">{record.note}</span>}
+        {record.attachments && record.attachments.length > 0 && (
+          <div className="history-attachments">
+            {record.attachments.map(att => (
+              <a
+                key={att.id}
+                className="history-attachment"
+                href={att.dataUrl}
+                target="_blank"
+                rel="noreferrer"
+                download={att.name}
+                title={att.name}
+              >
+                {att.type.startsWith('image/') ? (
+                  <img className="history-attachment__thumb" src={att.dataUrl} alt={att.name} />
+                ) : (
+                  <span className="history-attachment__file">PDF</span>
+                )}
+                <span className="history-attachment__name">{att.name}</span>
+              </a>
+            ))}
+          </div>
+        )}
         {(onEditHistory || onDeleteHistory) && (
           <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
             {onEditHistory && (

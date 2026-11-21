@@ -15,6 +15,14 @@ export type VehicleType = 'car' | 'motorcycle'
  * Las distancias se guardan siempre en kilómetros (unidad canónica).
  * `distanceUnit` solo define cómo se muestran y se ingresan.
  */
+export type ServiceAttachment = {
+  id: string
+  name: string
+  type: string
+  /** Data URL (base64) del archivo. */
+  dataUrl: string
+}
+
 export type ServiceRecord = {
   id: string
   date: string
@@ -27,6 +35,7 @@ export type ServiceRecord = {
   laborCost?: number
   /** Costo total del servicio. */
   totalCost?: number
+  attachments?: ServiceAttachment[]
 }
 
 export type MaintenanceItem = {
@@ -78,6 +87,7 @@ export type ItemDraft = {
   laborCost?: number
   totalCost?: number
   registerNow?: boolean
+  attachments?: ServiceAttachment[]
 }
 
 export type ServiceDraft = {
@@ -88,4 +98,5 @@ export type ServiceDraft = {
   partsCost?: number
   laborCost?: number
   totalCost?: number
+  attachments?: ServiceAttachment[]
 }
